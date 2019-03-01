@@ -1,14 +1,5 @@
-AWSTemplateFormatVersion: "2010-09-09"
-Description: "Connect - Comprehend/Transcribe Connect Demo"
-
-Mappings:
-  RegionMap:
-    us-east-1:
-      "S3Bucket": "serverless-analytics"
-    us-west-2:
-      "S3Bucket": "us-west-2.serverless-analytics"
-    ap-southeast-2:
-      "S3Bucket": "ap-southeast-2.serverless-analytics"
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Connect - Comprehend/Transcribe Connect Demo'
 
 Parameters:
   kibanaUser:
@@ -16,42 +7,51 @@ Parameters:
     Description: The name of the user that is used to log into kibana.
     Type: String
 
+Mappings: 
+  RegionMap: 
+    us-east-1: 
+      "S3Bucket": "serverless-analytics"
+    us-west-2: 
+      "S3Bucket": "us-west-2.serverless-analytics"
+    ap-southeast-2:
+      "S3Bucket": "ap-southeast-2.serverless-analytics"
+
 Resources:
+
   CognitoAccessForAmazonES:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service: es.amazonaws.com
-        Version: "2012-10-17"
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: es.amazonaws.com
+        Version: '2012-10-17'
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonESCognitoAccess
-
+      - arn:aws:iam::aws:policy/AmazonESCognitoAccess
   CognitoAccessForAmazonESPolicy:
     Properties:
       Description: elasticsearch and rekognition cognito role
       PolicyDocument:
         Statement:
-          - Action:
-              - iam:GetRole
-              - iam:PassRole
-              - iam:CreateRole
-              - iam:AttachRolePolicy
-              - ec2:DescribeVpcs
-              - cognito-identity:ListIdentityPools
-              - cognito-identity:DescribeIdentityPool
-              - cognito-idp:ListUserPools
-              - cognito-idp:DescribeUserPool
-              - cognito-idp:CreateUserPoolDomain
-              - cognito-idp:DeleteUserPoolDomain
-            Effect: Allow
-            Resource: "*"
-        Version: "2012-10-17"
+        - Action:
+          - iam:GetRole
+          - iam:PassRole
+          - iam:CreateRole
+          - iam:AttachRolePolicy
+          - ec2:DescribeVpcs
+          - cognito-identity:ListIdentityPools
+          - cognito-identity:DescribeIdentityPool
+          - cognito-idp:ListUserPools
+          - cognito-idp:DescribeUserPool
+          - cognito-idp:CreateUserPoolDomain
+          - cognito-idp:DeleteUserPoolDomain
+          Effect: Allow
+          Resource: '*'
+        Version: '2012-10-17'
       Roles:
-        - Ref: CognitoAccessForAmazonES
+      - Ref: CognitoAccessForAmazonES
     Type: AWS::IAM::ManagedPolicy
   CognitoApplicationClient:
     Properties:
@@ -67,34 +67,34 @@ Resources:
       Description: elasticsearch and rekognition cognito role
       PolicyDocument:
         Statement:
-          - Action:
-              - es:ESHttp*
-            Effect: Allow
-            Resource:
-              Fn::Sub: arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
-        Version: "2012-10-17"
+        - Action:
+          - es:ESHttp*
+          Effect: Allow
+          Resource:
+            Fn::Sub: arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
+        Version: '2012-10-17'
       Roles:
-        - Ref: CognitoAuthRole
+      - Ref: CognitoAuthRole
     Type: AWS::IAM::ManagedPolicy
   CognitoAuthRole:
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          - Action: sts:AssumeRoleWithWebIdentity
-            Effect: Allow
-            Principal:
-              Federated: cognito-identity.amazonaws.com
-        Version: "2012-10-17"
+        - Action: sts:AssumeRoleWithWebIdentity
+          Effect: Allow
+          Principal:
+            Federated: cognito-identity.amazonaws.com
+        Version: '2012-10-17'
     Type: AWS::IAM::Role
   CognitoIdentityPool:
     Properties:
       AllowUnauthenticatedIdentities: true
       CognitoIdentityProviders:
-        - ClientId:
-            Ref: CognitoApplicationClient
-          ProviderName:
-            Fn::Sub: cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
-          ServerSideTokenCheck: false
+      - ClientId:
+          Ref: CognitoApplicationClient
+        ProviderName:
+          Fn::Sub: cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+        ServerSideTokenCheck: false
     Type: AWS::Cognito::IdentityPool
   CognitoIdentityPoolRole:
     Properties:
@@ -103,41 +103,39 @@ Resources:
       Roles:
         authenticated:
           Fn::GetAtt:
-            - CognitoAuthRole
-            - Arn
+          - CognitoAuthRole
+          - Arn
         unauthenticated:
           Fn::GetAtt:
-            - CognitoUnauthRole
-            - Arn
+          - CognitoUnauthRole
+          - Arn
     Type: AWS::Cognito::IdentityPoolRoleAttachment
   CognitoUnauthRole:
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          - Action: sts:AssumeRoleWithWebIdentity
-            Effect: Allow
-            Principal:
-              Federated: cognito-identity.amazonaws.com
-        Version: "2012-10-17"
+        - Action: sts:AssumeRoleWithWebIdentity
+          Effect: Allow
+          Principal:
+            Federated: cognito-identity.amazonaws.com
+        Version: '2012-10-17'
     Type: AWS::IAM::Role
   CognitoUserPool:
     Properties:
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: false
         InviteMessageTemplate:
-          EmailMessage:
-            "Welcome to the Connect Indexer. Username: {username} Pwd:
-            {####}"
+          EmailMessage: 'Welcome to the Connect Indexer. Username: {username} Pwd:
+            {####}'
           EmailSubject: Welcome to Connect Indexer.
-          SMSMessage: "Welcome to Connect Indexer. Username: {username} Pwd: {####}"
+          SMSMessage: 'Welcome to Connect Indexer. Username: {username} Pwd: {####}'
         UnusedAccountValidityDays: 14
       AliasAttributes:
-        - email
+      - email
       AutoVerifiedAttributes:
-        - email
-      EmailVerificationMessage:
-        "Welcome to the Connect Indexer. Here is your confirmation
-        code: {####}"
+      - email
+      EmailVerificationMessage: 'Welcome to the Connect Indexer. Here is your confirmation
+        code: {####}'
       EmailVerificationSubject: Connect Indexer Email Confirmation Code
       Policies:
         PasswordPolicy:
@@ -149,13 +147,12 @@ Resources:
       UserPoolName:
         Fn::Sub: ${AWS::StackName}-users
     Type: AWS::Cognito::UserPool
-
   elasticsearchCognito:
     Properties:
       CodeUri:
         Bucket: !FindInMap [RegionMap, !Ref "AWS::Region", S3Bucket]
         Key: ConnectTranscribeComprehendESWorkshop/elasticsearchCognito.zip
-      Description: ""
+      Description: ''
       Environment:
         Variables:
           STEP_FUNCTION_ARN:
@@ -164,35 +161,32 @@ Resources:
       MemorySize: 512
       Role:
         Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
+        - LambdaServiceRole
+        - Arn
       Runtime: python2.7
       Timeout: 240
     Type: AWS::Serverless::Function
-
   checkElasticsearchStatus:
     Properties:
       CodeUri:
         Bucket: !FindInMap [RegionMap, !Ref "AWS::Region", S3Bucket]
         Key: ConnectTranscribeComprehendESWorkshop/checkElasticsearchStatus.zip
-      Description: ""
+      Description: ''
       Handler: elasticsearch-cognito.check_status
       MemorySize: 128
       Role:
         Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
+        - LambdaServiceRole
+        - Arn
       Runtime: python2.7
       Timeout: 15
     Type: AWS::Serverless::Function
-
   CfnStepFunction:
     DependsOn:
-      - checkElasticsearchStatus
+    - checkElasticsearchStatus
     Properties:
       DefinitionString:
-        Fn::Sub:
-          "{\n  \"StartAt\": \"checkAction\",\n  \"States\": {\n    \"checkAction\"\
+        Fn::Sub: "{\n  \"StartAt\": \"checkAction\",\n  \"States\": {\n    \"checkAction\"\
           : { \n        \"Type\": \"Task\",\n        \"Resource\": \"${checkElasticsearchStatus.Arn}\"\
           ,\n        \"InputPath\": \"$\",\n        \"ResultPath\": \"$\",\n     \
           \   \"Next\": \"IsActionComplete\"\n    },\n    \"IsActionComplete\": {\n\
@@ -206,25 +200,25 @@ Resources:
           ,\n      \"End\": true\n    }\n  }\n}"
       RoleArn:
         Fn::GetAtt:
-          - StatesExecutionRole
-          - Arn
+        - StatesExecutionRole
+        - Arn
     Type: AWS::StepFunctions::StateMachine
-
   ESCognito:
     DependsOn:
-      - CallsElasticSearch
-      - CognitoAuthKibanaPolicy
-      - CognitoAccessForAmazonES
-      - elasticsearchCognito
-      - CognitoIdentityPool
-      - CallsElasticSearch
+    - CallsElasticSearch
+    - CognitoAuthKibanaPolicy
+    - CognitoAccessForAmazonES
+    - elasticsearchCognito
+    - CognitoIdentityPool
+    - CognitoUserPool
+    - CallsElasticSearch
     Properties:
       IdentityPoolId:
         Ref: CognitoIdentityPool
       ServiceToken:
         Fn::GetAtt:
-          - elasticsearchCognito
-          - Arn
+        - elasticsearchCognito
+        - Arn
       StackName:
         Ref: AWS::StackName
       UserPoolId:
@@ -233,36 +227,28 @@ Resources:
         Ref: CallsElasticSearch
       esRoleArn:
         Fn::GetAtt:
-          - CognitoAccessForAmazonES
-          - Arn
+        - CognitoAccessForAmazonES
+        - Arn
       kibanaUser:
         Ref: kibanaUser
     Type: Custom::ESName
-
   AudioTranscriptionBucket:
     Type: AWS::S3::Bucket
-    Properties:
-      NotificationConfiguration:
-        LambdaConfigurations:
-          - Event: "s3:ObjectCreated:*"
-          - Function: !Ref kickOffStepFunctionsFromS3Even.Arn
-        DependsOn: kickOffStepFunctionsFromS3Event
   CTRStream:
     Type: AWS::Kinesis::Stream
     Properties:
       Name: Connect-CTR-Stream
       RetentionPeriodHours: 24
       ShardCount: 1
-
   CallsElasticSearch:
     Type: AWS::Elasticsearch::Domain
     Properties:
       ElasticsearchVersion: 6.3
       ElasticsearchClusterConfig:
-        InstanceCount: "1"
-        InstanceType: "m4.large.elasticsearch"
+        InstanceCount: '1'
+        InstanceType: 'm4.large.elasticsearch'
       EBSOptions:
-        EBSEnabled: "true"
+        EBSEnabled: 'true'
         VolumeSize: 10
         VolumeType: gp2
       AccessPolicies:
@@ -270,126 +256,120 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !Join [":", ["arn:aws:iam:", !Ref "AWS::AccountId", "root"]]
-            Action: "es:*"
-            Resource: "*"
-
+              AWS: !Join [ ":", [ "arn:aws:iam:", !Ref "AWS::AccountId", 'root'] ]
+            Action: 'es:*'
+            Resource: '*'
   StatesExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service:
-                - Fn::Sub: states.${AWS::Region}.amazonaws.com
-        Version: "2012-10-17"
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - Fn::Sub: states.${AWS::Region}.amazonaws.com
+        Version: '2012-10-17'
       Policies:
-        - PolicyDocument:
-            Statement:
-              - Action:
-                  - lambda:InvokeFunction
-                Effect: Allow
-                Resource: "*"
-            Version: "2012-10-17"
-          PolicyName: StatesExecutionPolicy
-
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource: '*'
+          Version: '2012-10-17'
+        PolicyName: StatesExecutionPolicy
   LambdaServiceRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
       Policies:
         - PolicyDocument:
             Statement:
-              - Action:
-                  - s3:*
-                  - comprehend:*
-                  - transcribe:*
-                  - es:*
-                  - states:StartExecution
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                  - kinesis:GetRecords
-                  - kinesis:GetShardIterator
-                  - kinesis:DescribeStream
-                  - kinesis:ListStreams
-                  - cognito-idp:*
-                  - iam:PassRole
-                  - kms:*
-                Effect: Allow
-                Resource: "*"
-            Version: "2012-10-17"
+            - Action:
+              - s3:*
+              - comprehend:*
+              - transcribe:*
+              - es:*
+              - states:StartExecution
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - kinesis:GetRecords
+              - kinesis:GetShardIterator
+              - kinesis:DescribeStream
+              - kinesis:ListStreams
+              - cognito-idp:*
+              - iam:PassRole
+              - kms:*
+              Effect: Allow
+              Resource: '*'
+            Version: '2012-10-17'
           PolicyName: LambdaServiceRolePolicy
-
   indexIntoElasticsearch:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !FindInMap [RegionMap, !Ref "AWS::Region", S3Bucket]
         Key: ConnectTranscribeComprehendESWorkshop/IndexS3TranscriptionDataIntoES.zip
-      Description: "Lambda funcion that indexes the Transcription and NLP entties/keyphrases"
+      Description: 'Lambda funcion that indexes the Transcription and NLP entties/keyphrases'
       Environment:
         Variables:
           ES_DOMAIN:
             Fn::GetAtt:
-              - CallsElasticSearch
-              - DomainEndpoint
-          ES_EPISODE_INDEX: "reinvent-2018-workshop"
+            - CallsElasticSearch
+            - DomainEndpoint
+          ES_EPISODE_INDEX: 'reinvent-2018-workshop'
       Handler: upload_to_elasticsearch.lambda_handler
       MemorySize: 256
       Role:
         Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
+        - LambdaServiceRole
+        - Arn
       Runtime: python2.7
       Timeout: 60
-
   startTranscriptionJob:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !FindInMap [RegionMap, !Ref "AWS::Region", S3Bucket]
         Key: ConnectTranscribeComprehendESWorkshop/StartTranscriptionJob.zip
-      Description: "Lambda funcion that starts the Transcription job"
+      Description: 'Lambda funcion that starts the Transcription job'
       Handler: podcast_transcribe.lambda_handler
       MemorySize: 256
       Role:
         Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
+        - LambdaServiceRole
+        - Arn
       Runtime: python2.7
       Timeout: 60
-
   checkTranscriptionJob:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !FindInMap [RegionMap, !Ref "AWS::Region", S3Bucket]
         Key: ConnectTranscribeComprehendESWorkshop/CheckTranscriptionJob.zip
-      Description: "Lambda funcion that starts the Transcription job"
+      Description: 'Lambda funcion that starts the Transcription job'
       Handler: check_transcribe.lambda_handler
       MemorySize: 256
       Role:
         Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
+        - LambdaServiceRole
+        - Arn
       Runtime: python2.7
       Timeout: 60
-
   processTranscriptionJob:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !FindInMap [RegionMap, !Ref "AWS::Region", S3Bucket]
         Key: ConnectTranscribeComprehendESWorkshop/ProcessTranscription.zip
-      Description: "Lambda funcion that starts the Transcription job"
+      Description: 'Lambda funcion that starts the Transcription job'
       Environment:
         Variables:
           BUCKET_NAME:
@@ -398,11 +378,10 @@ Resources:
       MemorySize: 256
       Role:
         Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
+        - LambdaServiceRole
+        - Arn
       Runtime: python2.7
       Timeout: 60
-
   processAudioFile:
     Type: AWS::StepFunctions::StateMachine
     Properties:
@@ -410,39 +389,39 @@ Resources:
         Fn::Sub: "{\n  \"StartAt\": \"Start Amazon Transcribe\",\n  \"States\": {\n    \"Start Amazon Transcribe\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"${startTranscriptionJob.Arn}\",\n      \"InputPath\": \"$\",\n      \"ResultPath\": \"$.transcribe\",\n      \"Next\": \"Check Transcribe Status\",\n      \"Retry\": [\n        {\n          \"ErrorEquals\": [ \"ThrottlingException\" ],\n          \"IntervalSeconds\": 120,\n          \"BackoffRate\": 1,\n          \"MaxAttempts\": 1000\n        },\n        {\n          \"ErrorEquals\": [ \"States.ALL\" ],\n          \"IntervalSeconds\": 60,\n          \"BackoffRate\": 2,\n          \"MaxAttempts\": 3\n        }\n      ]\n    },\n    \"Check Transcribe Status\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"${checkTranscriptionJob.Arn}\",\n      \"InputPath\": \"$.transcribe\",\n      \"ResultPath\": \"$.transcribeStatus\",\n      \"Next\": \"Is Transcribe Completed?\"\n    },\n    \"Wait for Transcribe Completion\": {\n      \"Type\": \"Wait\",\n      \"Seconds\": 60,\n      \"Next\": \"Check Transcribe Status\"\n    },\n    \"Is Transcribe Completed?\": {\n      \"Type\": \"Choice\",\n      \"Choices\": [\n        {\n          \"Variable\": \"$.transcribeStatus.status\",\n          \"StringEquals\": \"COMPLETED\",\n          \"Next\": \"Process Transcription\"\n        }\n      ],\n      \"Default\": \"Wait for Transcribe Completion\"\n    },\n    \"Process Transcription\": {\n      \"Type\": \"Parallel\",\n      \"Branches\": [\n        {\n          \"StartAt\": \"Generate Full Text Transcript\",\n          \"States\": {\n            \"Generate Full Text Transcript\": {\n              \"Type\": \"Task\",\n              \"Resource\": \"${processTranscriptionJob.Arn}\",\n              \"End\": true\n            }\n          }\n        }\n      ],\n      \"ResultPath\": \"$.processedTranscription\",\n      \"Next\": \"Upload To Elasticsearch\"\n    },\n    \"Upload To Elasticsearch\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"${indexIntoElasticsearch.Arn}\",\n      \"InputPath\": \"$\",\n      \"ResultPath\": \"$.elasticsearchResult\",\n      \"Next\": \"Complete\"\n    },\n    \"Complete\": {\n      \"Type\": \"Succeed\"\n    }\n  }\n}"
       RoleArn:
         Fn::GetAtt:
-          - StatesExecutionRole
-          - Arn
-
+        - StatesExecutionRole
+        - Arn
   indexCTRInElasticSearch:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !FindInMap [RegionMap, !Ref "AWS::Region", S3Bucket]
         Key: ConnectTranscribeComprehendESWorkshop/IndexCTRInElasticSearch.zip
-      Description: "Lambda funcion that starts the Transcription job"
+      Description: 'Lambda funcion that starts the Transcription job'
       Environment:
         Variables:
           ES_DOMAIN:
             Fn::GetAtt:
-              - CallsElasticSearch
-              - DomainEndpoint
-          ES_EPISODE_INDEX: "reinvent-2018-workshop"
+            - CallsElasticSearch
+            - DomainEndpoint
+          ES_EPISODE_INDEX: 'reinvent-2018-workshop'
       Handler: upload_to_elasticsearch.lambda_handler
       MemorySize: 256
       Role:
         Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
+        - LambdaServiceRole
+        - Arn
       Runtime: python2.7
       Timeout: 60
-
   kickOffStepFunctionsFromS3Event:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !FindInMap [RegionMap, !Ref "AWS::Region", S3Bucket]
         Key: ConnectTranscribeComprehendESWorkshop/S3ProcessNewAudio.zip
-      Description: "Lambda funcion that starts the Transcription job"
+      Description: 'Lambda funcion that starts the Transcription job'
+      EnventSourceARN:
+      - !Join ['', ['arn:aws:s3:::', !Ref 'AudioTranscriptionBucket']]
       Environment:
         Variables:
           STEP_FUNCTIONS_ARN: !Ref processAudioFile
@@ -450,11 +429,30 @@ Resources:
       MemorySize: 256
       Role:
         Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
+        - LambdaServiceRole
+        - Arn
       Runtime: python2.7
       Timeout: 60
-
+  S3PutObjectFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: 'Used to put objects in S3'
+      FunctionName: CreateS3Folders
+      Handler: aws/s3.putObject
+      Role: !GetAtt LambdaServiceRole.arn
+      Runtime: nodejs
+      Timeout: 30
+      Code:
+        S3Bucket: 'com.gilt.public.backoffice'
+        S3Key: 'lambda_functions/cloudformation-helpers.zip'
+    DependsOn: LambdaServiceRole
+  ConnectFolder:
+    Type: Custom::aws/s3.putObject
+    Properties:
+      ServiceToken: !GetAtt S3PutObjectFunction.arn
+      Bucket: 
+        Ref: AudioTranscriptionBucket
+        Key: 'connect/test'
 Outputs:
   KibanaUrl:
     Description: A hyperlink to the Kibana tool
@@ -465,14 +463,15 @@ Outputs:
     Description: The password for the kibana user
     Value:
       Fn::GetAtt:
-        - ESCognito
-        - KibanaPassword
-
+      - ESCognito
+      - KibanaPassword
+      
   KibanaUser:
     Description: The username for the kibana user
     Value:
       Fn::GetAtt:
-        - ESCognito
-        - KibanaUser
+      - ESCognito
+      - KibanaUser
 
 Transform: AWS::Serverless-2016-10-31
+
