@@ -26,10 +26,6 @@ Parameters:
     Default: kibana
     Description: The name of the user that is used to log into kibana.
     Type: String
-  DeleteLambdaZipsBucketContents:
-    Default: "False"
-    AllowedValues: ["True", "False"]
-    Type: String
   LambdaZipsBucketName:
     Description: Bucket Name where the lambda zip files should be placed
     Type: String
@@ -59,9 +55,6 @@ Parameters:
 Conditions:
   # TODO: Setup configuration for GovCloud
   GovCloudCondition: !Equals [!Ref "AWS::Region", us-gov-west-1]
-  CreateDeleteBucketContentsLambda: !Equals
-    - !Ref "DeleteLambdaZipsBucketContents"
-    - "True"
 Resources:
   # Lambda Portability Management
   LambdaZipsBucket:
