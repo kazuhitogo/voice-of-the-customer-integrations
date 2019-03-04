@@ -2,5 +2,9 @@
     {
         "ParameterKey": "kibanaUser",
         "ParameterValue": "kibana"
+    },
+    {
+        "ParameterKey": "QSS3BucketName",
+        "ParameterValue": "$[taskcat_autobucket]"
     }
 ]
