@@ -6,9 +6,5 @@
   {
     "ParameterKey": "QSS3BucketName",
     "ParameterValue": "$[taskcat_autobucket]"
-  },
-  {
-    "ParameterKey": "LambdaZipsBucketName",
-    "ParameterValue": "$[taskcat_autobucket]"
   }
 ]

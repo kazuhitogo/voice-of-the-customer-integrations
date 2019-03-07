@@ -5,18 +5,16 @@ Metadata:
     ParameterGroups:
       - Label:
           default: General Settings
-        Parameters: -kibanaUser
+        Parameters:
+          - kibanaUser
       - Label:
           default: AWS Quick Start Configuration
         Parameters:
-          - LambdaZipsBucketName
           - QSS3BucketName
           - QSS3KeyPrefix
     ParameterLabels:
       kibanaUser:
         default: The name of the user that is used to log into kibana.
-      LambdaZipsBucketName:
-        default: Bucket Name where the lambda zip files should be placed
       QSS3BucketName:
         default: Quick Start S3 Bucket Name
       QSS3KeyPrefix:
@@ -25,9 +23,6 @@ Parameters:
   kibanaUser:
     Default: kibana
     Description: The name of the user that is used to log into kibana.
-    Type: String
-  LambdaZipsBucketName:
-    Description: Bucket Name where the lambda zip files should be placed
     Type: String
   QSS3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
@@ -46,14 +41,13 @@ Parameters:
     ConstraintDescription:
       Quick Start key prefix can include numbers, lowercase letters,
       uppercase letters, hyphens (-), and forward slash (/).
-    Default: "quickstart-connect-voci"
+    Default: "quickstart-connect-voci/"
     Description:
       S3 key prefix for the Quick Start assets. Quick Start key prefix
       can include numbers, lowercase letters, uppercase letters, hyphens (-), and
       forward slash (/).
     Type: String
 Conditions:
-  # TODO: Setup configuration for GovCloud
   GovCloudCondition: !Equals [!Ref "AWS::Region", us-gov-west-1]
 Resources:
   # Lambda Portability Management
@@ -100,7 +94,7 @@ Resources:
     Type: Custom::CopyZips
     Properties:
       ServiceToken: !GetAtt "CopyZipsFunction.Arn"
-      DestBucket: !Ref LambdaZipsBucketName
+      DestBucket: !Ref LambdaZipsBucket
       SourceBucket: !Ref "QSS3BucketName"
       Prefix: !Ref "QSS3KeyPrefix"
       Objects:
@@ -114,13 +108,14 @@ Resources:
         - functions/packages/ProcessTranscription/lambda.zip
         - functions/packages/S3ProcessNewAudio/lambda.zip
         - functions/packages/StartTranscriptionJob/lambda.zip
+    #DependsOn: LambdaZipsBucket
   CopyZipsFunction:
     Type: AWS::Lambda::Function
     Properties:
       Description: Copies objects from a source S3 bucket to a destination
       Handler: index.handler
       Runtime: python2.7
-      Role: !Ref CopyZipsRoleArn
+      Role: !GetAtt "CopyZipsRole.Arn"
       Timeout: 900
       Code:
         ZipFile: |
@@ -188,6 +183,28 @@ Resources:
             Principal:
               Federated: cognito-identity.amazonaws.com
         Version: "2012-10-17"
+  CognitoUnauthRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRoleWithWebIdentity
+            Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+        Version: "2012-10-17"
+    Type: AWS::IAM::Role
+  CognitoAccessForAmazonES:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: es.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonESCognitoAccess
   LambdaServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -240,18 +257,6 @@ Resources:
                 Resource: "*"
             Version: "2012-10-17"
           PolicyName: StatesExecutionPolicy
-  CognitoAccessForAmazonES:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service: es.amazonaws.com
-        Version: "2012-10-17"
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonESCognitoAccess
   # Policies
   CognitoAccessForAmazonESPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -363,7 +368,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !Ref "LambdaZipsBucket"
-        Key: !Sub "${QSS3KeyPrefix}/functions/packageselasticsearchCognito/lambda.zip"
+        Key: !Sub "${QSS3KeyPrefix}functions/packages/elasticsearchCognito/lambda.zip"
       Description: ""
       Environment:
         Variables:
@@ -377,12 +382,13 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 240
+    DependsOn: CopyZips
   checkElasticsearchStatus:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !Ref "LambdaZipsBucket"
-        Key: !Sub "${QSS3KeyPrefix}/functions/packagescheckElasticsearchStatus/lambda.zip"
+        Key: !Sub "${QSS3KeyPrefix}functions/packages/checkElasticsearchStatus/lambda.zip"
       Description: ""
       Handler: elasticsearch-cognito.check_status
       MemorySize: 128
@@ -392,12 +398,13 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 15
+    DependsOn: CopyZips
   indexIntoElasticsearch:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !Ref "LambdaZipsBucket"
-        Key: !Sub "${QSS3KeyPrefix}/functions/packagesIndexS3TranscriptionDataIntoES/lambda.zip"
+        Key: !Sub "${QSS3KeyPrefix}functions/packages/IndexS3TranscriptionDataIntoES/lambda.zip"
       Description: "Lambda funcion that indexes the Transcription and NLP entties/keyphrases"
       Environment:
         Variables:
@@ -414,12 +421,20 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
+      Events:
+        Stream:
+          Type: Kinesis
+          Properties:
+            Stream: !GetAtt CTRStream.Arn
+            BatchSize: 100
+            StartingPosition: LATEST
+    DependsOn: CopyZips
   startTranscriptionJob:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !Ref "LambdaZipsBucket"
-        Key: !Sub "${QSS3KeyPrefix}/functions/packagesStartTranscriptionJob/lambda.zip"
+        Key: !Sub "${QSS3KeyPrefix}functions/packages/podcast-transcribe-index-podcastTranscribe/lambda.zip"
       Description: "Lambda funcion that starts the Transcription job"
       Handler: podcast_transcribe.lambda_handler
       MemorySize: 256
@@ -429,12 +444,13 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
+    DependsOn: CopyZips
   checkTranscriptionJob:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !Ref "LambdaZipsBucket"
-        Key: !Sub "${QSS3KeyPrefix}/functions/packagesCheckTranscriptionJob/lambda.zip"
+        Key: !Sub "${QSS3KeyPrefix}functions/packages/CheckTranscriptionJob/lambda.zip"
       Description: "Lambda funcion that starts the Transcription job"
       Handler: check_transcribe.lambda_handler
       MemorySize: 256
@@ -444,16 +460,17 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
+    DependsOn: CopyZips
   processTranscriptionJob:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !Ref "LambdaZipsBucket"
-        Key: !Sub "${QSS3KeyPrefix}/functions/packagesProcessTranscription/lambda.zip"
+        Key: !Sub "${QSS3KeyPrefix}functions/packages/podcast-transcribe-index-processTranscriptionFull/lambda.zip"
       Description: "Lambda funcion that starts the Transcription job"
       Environment:
         Variables:
-          BUCKET_NAME: !Ref AudioTranscriptionBucket
+          BUCKET_NAME: !GetAtt S3Stack.Outputs.BucketName
       Handler: process_transcription_full_text.lambda_handler
       MemorySize: 256
       Role:
@@ -462,12 +479,13 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
+    DependsOn: CopyZips
   indexCTRInElasticSearch:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !Ref "LambdaZipsBucket"
-        Key: !Sub "${QSS3KeyPrefix}/functions/packagesIndexCTRInElasticSearch/lambda.zip"
+        Key: !Sub "${QSS3KeyPrefix}functions/packages/IndexCTRInElasticSearch/lambda.zip"
       Description: "Lambda funcion that starts the Transcription job"
       Environment:
         Variables:
@@ -484,12 +502,13 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
+    DependsOn: CopyZips
   kickOffStepFunctionsFromS3Event:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
         Bucket: !Ref "LambdaZipsBucket"
-        Key: !Sub "${QSS3KeyPrefix}/functions/packagesS3ProcessNewAudio/lambda.zip"
+        Key: !Sub "${QSS3KeyPrefix}functions/packages/S3ProcessNewAudio/lambda.zip"
       Description: "Lambda funcion that starts the Transcription job"
       Environment:
         Variables:
@@ -502,6 +521,7 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
+    DependsOn: CopyZips
   # End Serverless Functions
   #**********************************
   # Step Functions
@@ -540,6 +560,14 @@ Resources:
   # End Step Functions
   #**********************************
   # Other Resources
+  S3Stack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL:
+        !Sub [
+          "https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}templates/quickstart-connect-voci-ATB.yaml",
+          { QSS3Region: !If [GovCloudCondition, s3-us-gov-west-1, s3] },
+        ]
   ESCognito:
     Type: Custom::ESName
     Properties:
@@ -561,8 +589,6 @@ Resources:
           - Arn
       kibanaUser:
         Ref: kibanaUser
-  AudioTranscriptionBucket:
-    Type: AWS::S3::Bucket
   CTRStream:
     Type: AWS::Kinesis::Stream
     Properties:
