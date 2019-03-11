@@ -105,7 +105,7 @@ Resources:
       SourceBucket: !Ref "QSS3BucketName"
       Prefix: !Ref "QSS3KeyPrefix"
       Objects:
-        - !Ref LambdaZipObjects
+       !Ref LambdaZipObjects
     #DependsOn: LambdaZipsBucket
   CopyZipsFunction:
     Type: AWS::Lambda::Function

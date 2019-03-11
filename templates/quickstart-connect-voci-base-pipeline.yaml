@@ -50,6 +50,8 @@ Parameters:
 Conditions:
   GovCloudCondition: !Equals [!Ref "AWS::Region", us-gov-west-1]
 Resources:
+# Lambda Portability Stack
+# This stack will 
   LPStack:
     Type: AWS::CloudFormation::Stack
     Properties:
