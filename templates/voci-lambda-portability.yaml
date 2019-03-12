@@ -1,18 +1,15 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Connect - Comprehend/Transcribe Connect Demo
+Description: Enables the deployment of lambda functions in any region, by localizing the source files wherever they are needed. Returns the name and arn of the localization bucket
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
           default: General Settings
         Parameters:
-          - LambdaZipsBucketName
           - QSS3BucketName
           - QSS3KeyPrefix
           - LambdaZipObjects
     ParameterLabels:
-      LambdaZipsBucketName:
-        default: The name of the Bucket that will be used for the zip files
       QSS3BucketName:
         default: Quick Start S3 Bucket Name
       QSS3KeyPrefix:
@@ -20,18 +17,6 @@ Metadata:
       LambdaZipObjects:
         default: A comma separated list of the zip objects with their relative paths
 Parameters:
-  LambdaZipsBucketName:
-    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
-    ConstraintDescription:
-      Quick Start bucket name can include numbers, lowercase
-      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
-      (-).
-    Default: aws-lambda-zips-bucket
-    Description:
-      S3 bucket name for the Lambda assets. The Lambda Zips bucket name
-      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
-      It cannot start or end with a hyphen (-).
-    Type: String
   QSS3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
     ConstraintDescription:
@@ -59,7 +44,8 @@ Parameters:
     Description: A comma separated list of the zip objects with their relative paths
     Type: CommaDelimitedList
 Resources:
-  # Lambda Portability Management
+  LambdaZipsBucket:
+    Type: AWS::S3::Bucket
   CopyZipsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -94,19 +80,17 @@ Resources:
                   - s3:GetObjectVersion
                   - s3:GetBucketVersioning
                 Resource:
-                  - Fn::Sub: arn:aws:s3:::${LambdaZipsBucketName}/${QSS3KeyPrefix}*
-                  - Fn::Sub: arn:aws:s3:::${LambdaZipsBucketName}
+                  - Fn::Sub: arn:aws:s3:::${LambdaZipsBucket}/${QSS3KeyPrefix}*
+                  - Fn::Sub: arn:aws:s3:::${LambdaZipsBucket}
           PolicyName: aws-quick-start-lambda-copier
   CopyZips:
     Type: Custom::CopyZips
     Properties:
       ServiceToken: !GetAtt "CopyZipsFunction.Arn"
-      DestBucket: !Ref LambdaZipsBucketName
+      DestBucket: !Ref LambdaZipsBucket
       SourceBucket: !Ref "QSS3BucketName"
       Prefix: !Ref "QSS3KeyPrefix"
-      Objects:
-       !Ref LambdaZipObjects
-    #DependsOn: LambdaZipsBucket
+      Objects: !Ref LambdaZipObjects
   CopyZipsFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -167,5 +151,10 @@ Resources:
               finally:
                   timer.cancel()
                   cfnresponse.send(event, context, status, {}, physical_resource_id)
-  # End Lambda Portability Management
-  #**********************************
+Outputs:
+  LambdaZipsBucketName:
+    Description: Monitored bucket for new object additions
+    Value: !Ref LambdaZipsBucket
+  LambdaZipsBucketARN:
+    Description: Monitored bucket for new object additions
+    Value: !GetAtt LambdaZipsBucket.Arn
