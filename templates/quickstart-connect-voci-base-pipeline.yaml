@@ -7,6 +7,7 @@ Metadata:
           default: General Settings
         Parameters:
           - kibanaUser
+          - AudioTranscriptionBucketName
       - Label:
           default: AWS Quick Start Configuration
         Parameters:
@@ -15,6 +16,8 @@ Metadata:
     ParameterLabels:
       kibanaUser:
         default: The name of the user that is used to log into kibana.
+      AudioTranscriptionBucketName:
+        default: Audio transcription S3 Bucket Name
       QSS3BucketName:
         default: Quick Start S3 Bucket Name
       QSS3KeyPrefix:
@@ -23,6 +26,18 @@ Parameters:
   kibanaUser:
     Default: kibana
     Description: The name of the user that is used to log into kibana.
+    Type: String
+  AudioTranscriptionBucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription:
+      Audio Transcription bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Default: VOCI-AudioTranscriptionBucket
+    Description:
+      S3 bucket name for the Audio Transcription uploads. The Audio Transcription bucket name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
     Type: String
   QSS3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
@@ -50,9 +65,10 @@ Parameters:
 Conditions:
   GovCloudCondition: !Equals [!Ref "AWS::Region", us-gov-west-1]
 Resources:
-# Lambda Portability Stack
-# This stack will 
+  #CF Stacks
   LPStack:
+    # Lambda Portability Stack
+    # This stack will create copy the lambda zip files to the appropriate region.
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL:
@@ -61,7 +77,6 @@ Resources:
           { QSS3Region: !If [GovCloudCondition, s3-us-gov-west-1, s3] },
         ]
       Parameters:
-        LambdaZipsBucketName: !GetAtt S3Stack.Outputs.LambdaZipsBucketName
         QSS3BucketName: !Ref "QSS3BucketName"
         QSS3KeyPrefix: !Ref "QSS3KeyPrefix"
         LambdaZipObjects: !Join
@@ -76,43 +91,30 @@ Resources:
             - functions/packages/ProcessTranscription/lambda.zip
             - functions/packages/S3ProcessNewAudio/lambda.zip
             - functions/packages/StartTranscriptionJob/lambda.zip
-
-  # End Lambda Portability Management
+    # End Lambda Portability stack
   #**********************************
+  CognitoStack:
+    # Cognito Stack
+    # This stack will provision all cognito related resources (Roles, policies and objects)
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL:
+        !Sub [
+          "https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}templates/voci-cognito.yaml",
+          { QSS3Region: !If [GovCloudCondition, s3-us-gov-west-1, s3] },
+        ]
+    # End Cognito Stack
+  #**********************************
+  # End CF Stacks
+  #S3 Buckets
+  AudioTranscriptionBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Ref: AudioTranscriptionBucketName
+  # End S3 Buckets
   # IAM Resources
   # Roles
-  CognitoAuthRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRoleWithWebIdentity
-            Effect: Allow
-            Principal:
-              Federated: cognito-identity.amazonaws.com
-        Version: "2012-10-17"
-  CognitoUnauthRole:
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRoleWithWebIdentity
-            Effect: Allow
-            Principal:
-              Federated: cognito-identity.amazonaws.com
-        Version: "2012-10-17"
-    Type: AWS::IAM::Role
-  CognitoAccessForAmazonES:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service: es.amazonaws.com
-        Version: "2012-10-17"
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonESCognitoAccess
   LambdaServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -165,117 +167,15 @@ Resources:
                 Resource: "*"
             Version: "2012-10-17"
           PolicyName: StatesExecutionPolicy
-  # Policies
-  CognitoAccessForAmazonESPolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      Description: elasticsearch and rekognition cognito role
-      PolicyDocument:
-        Statement:
-          - Action:
-              - iam:GetRole
-              - iam:PassRole
-              - iam:CreateRole
-              - iam:AttachRolePolicy
-              - ec2:DescribeVpcs
-              - cognito-identity:ListIdentityPools
-              - cognito-identity:DescribeIdentityPool
-              - cognito-idp:ListUserPools
-              - cognito-idp:DescribeUserPool
-              - cognito-idp:CreateUserPoolDomain
-              - cognito-idp:DeleteUserPoolDomain
-            Effect: Allow
-            Resource: "*"
-        Version: "2012-10-17"
-      Roles:
-        - Ref: CognitoAccessForAmazonES
-  CognitoAuthKibanaPolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      Description: elasticsearch and rekognition cognito role
-      PolicyDocument:
-        Statement:
-          - Action:
-              - es:ESHttp*
-            Effect: Allow
-            Resource:
-              Fn::Sub: arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
-        Version: "2012-10-17"
-      Roles:
-        - Ref: CognitoAuthRole
   # End IAM Resources
   #**********************************
-  # Cognito Resources
-  CognitoIdentityPoolRole:
-    Type: AWS::Cognito::IdentityPoolRoleAttachment
-    Properties:
-      IdentityPoolId:
-        Ref: CognitoIdentityPool
-      Roles:
-        authenticated:
-          Fn::GetAtt:
-            - CognitoAuthRole
-            - Arn
-        unauthenticated:
-          Fn::GetAtt:
-            - CognitoUnauthRole
-            - Arn
-  CognitoApplicationClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      ClientName:
-        Fn::Sub: ${AWS::StackName}-appclient
-      GenerateSecret: false
-      RefreshTokenValidity: 2
-      UserPoolId:
-        Ref: CognitoUserPool
-  CognitoIdentityPool:
-    Type: AWS::Cognito::IdentityPool
-    Properties:
-      AllowUnauthenticatedIdentities: true
-      CognitoIdentityProviders:
-        - ClientId:
-            Ref: CognitoApplicationClient
-          ProviderName:
-            Fn::Sub: cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
-          ServerSideTokenCheck: false
-  CognitoUserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: false
-        InviteMessageTemplate:
-          EmailMessage:
-            "Welcome to the Connect Indexer. Username: {username} Pwd:
-            {####}"
-          EmailSubject: Welcome to Connect Indexer.
-          SMSMessage: "Welcome to Connect Indexer. Username: {username} Pwd: {####}"
-        UnusedAccountValidityDays: 14
-      AliasAttributes:
-        - email
-      AutoVerifiedAttributes:
-        - email
-      EmailVerificationMessage:
-        "Welcome to the Connect Indexer. Here is your confirmation
-        code: {####}"
-      EmailVerificationSubject: Connect Indexer Email Confirmation Code
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: true
-          RequireUppercase: true
-      UserPoolName:
-        Fn::Sub: ${AWS::StackName}-users
-  # End Cognito Resources
-  #**********************************
+  # End IAM Resources
   # Serverless Functions
   elasticsearchCognito:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
-        Bucket: !GetAtt S3Stack.Outputs.LambdaZipsBucketName
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub "${QSS3KeyPrefix}functions/packages/elasticsearchCognito/lambda.zip"
       Description: ""
       Environment:
@@ -290,12 +190,11 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 240
-    DependsOn: LPStack
   checkElasticsearchStatus:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
-        Bucket: !GetAtt S3Stack.Outputs.LambdaZipsBucketName
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub "${QSS3KeyPrefix}functions/packages/checkElasticsearchStatus/lambda.zip"
       Description: ""
       Handler: elasticsearch-cognito.check_status
@@ -306,12 +205,11 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 15
-    DependsOn: LPStack
   indexIntoElasticsearch:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
-        Bucket: !GetAtt S3Stack.Outputs.LambdaZipsBucketName
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub "${QSS3KeyPrefix}functions/packages/IndexS3TranscriptionDataIntoES/lambda.zip"
       Description: "Lambda funcion that indexes the Transcription and NLP entties/keyphrases"
       Environment:
@@ -336,12 +234,11 @@ Resources:
             Stream: !GetAtt CTRStream.Arn
             BatchSize: 100
             StartingPosition: LATEST
-    DependsOn: LPStack
   startTranscriptionJob:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
-        Bucket: !GetAtt S3Stack.Outputs.LambdaZipsBucketName
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub "${QSS3KeyPrefix}functions/packages/podcast-transcribe-index-podcastTranscribe/lambda.zip"
       Description: "Lambda funcion that starts the Transcription job"
       Handler: podcast_transcribe.lambda_handler
@@ -352,12 +249,11 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
-    DependsOn: LPStack
   checkTranscriptionJob:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
-        Bucket: !GetAtt S3Stack.Outputs.LambdaZipsBucketName
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub "${QSS3KeyPrefix}functions/packages/CheckTranscriptionJob/lambda.zip"
       Description: "Lambda funcion that starts the Transcription job"
       Handler: check_transcribe.lambda_handler
@@ -368,17 +264,16 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
-    DependsOn: LPStack
   processTranscriptionJob:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
-        Bucket: !GetAtt S3Stack.Outputs.LambdaZipsBucketName
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub "${QSS3KeyPrefix}functions/packages/podcast-transcribe-index-processTranscriptionFull/lambda.zip"
       Description: "Lambda funcion that starts the Transcription job"
       Environment:
         Variables:
-          BUCKET_NAME: !GetAtt S3Stack.Outputs.AudioTranscriptionBucketName
+          BUCKET_NAME: AudioTranscriptionBucket
       Handler: process_transcription_full_text.lambda_handler
       MemorySize: 256
       Role:
@@ -387,12 +282,11 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
-    DependsOn: LPStack
   indexCTRInElasticSearch:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
-        Bucket: !GetAtt S3Stack.Outputs.LambdaZipsBucketName
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub "${QSS3KeyPrefix}functions/packages/IndexCTRInElasticSearch/lambda.zip"
       Description: "Lambda funcion that starts the Transcription job"
       Environment:
@@ -402,6 +296,13 @@ Resources:
               - CallsElasticSearch
               - DomainEndpoint
           ES_EPISODE_INDEX: "reinvent-2018-workshop"
+      Events:
+        Stream:
+          Type: Kinesis
+          Properties:
+            Stream: !GetAtt CTRStream.Arn
+            BatchSize: 100
+            StartingPosition: LATEST
       Handler: upload_to_elasticsearch.lambda_handler
       MemorySize: 256
       Role:
@@ -410,17 +311,28 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
-    DependsOn: LPStack
   kickOffStepFunctionsFromS3Event:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri:
-        Bucket: !GetAtt S3Stack.Outputs.LambdaZipsBucketName
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub "${QSS3KeyPrefix}functions/packages/S3ProcessNewAudio/lambda.zip"
       Description: "Lambda funcion that starts the Transcription job"
       Environment:
         Variables:
           STEP_FUNCTIONS_ARN: !Ref processAudioFile
+      Events:
+        Upload:
+          Properties:
+            Bucket:
+              Ref: AudioTranscriptionBucket
+            Events: "s3:ObjectCreated:*"
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: wav
+          Type: S3
       Handler: lambda_function.lambda_handler
       MemorySize: 256
       Role:
@@ -429,9 +341,7 @@ Resources:
           - Arn
       Runtime: python2.7
       Timeout: 60
-    DependsOn: LPStack
   # End Serverless Functions
-  #**********************************
   # Step Functions
   CfnStepFunction:
     Type: AWS::StepFunctions::StateMachine
@@ -466,35 +376,21 @@ Resources:
           - StatesExecutionRole
           - Arn
   # End Step Functions
-  #**********************************
   # Other Resources
-  S3Stack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL:
-        !Sub [
-          "https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}templates/voci-s3.yaml",
-          { QSS3Region: !If [GovCloudCondition, s3-us-gov-west-1, s3] },
-        ]
   ESCognito:
     Type: Custom::ESName
     Properties:
-      IdentityPoolId:
-        Ref: CognitoIdentityPool
+      IdentityPoolId: !GetAtt CognitoStack.Outputs.CognitoIdentityPool
       ServiceToken:
         Fn::GetAtt:
           - elasticsearchCognito
           - Arn
       StackName:
         Ref: AWS::StackName
-      UserPoolId:
-        Ref: CognitoUserPool
+      UserPoolId: !GetAtt CognitoStack.Outputs.CognitoUserPool
       esCluster:
         Ref: CallsElasticSearch
-      esRoleArn:
-        Fn::GetAtt:
-          - CognitoAccessForAmazonES
-          - Arn
+      esRoleArn: !GetAtt CognitoStack.Outputs.CognitoAccessForAmazonESARN
       kibanaUser:
         Ref: kibanaUser
   CTRStream:
