@@ -396,7 +396,6 @@ Resources:
   CTRStream:
     Type: AWS::Kinesis::Stream
     Properties:
-      Name: Connect-CTR-Stream
       RetentionPeriodHours: 24
       ShardCount: 1
   CallsElasticSearch:
