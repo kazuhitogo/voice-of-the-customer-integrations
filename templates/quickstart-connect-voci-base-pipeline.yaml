@@ -273,7 +273,7 @@ Resources:
       Description: 'Lambda funcion that starts the Transcription job'
       Environment:
         Variables:
-          BUCKET_NAME: AudioTranscriptionBucket
+          BUCKET_NAME: AudioTranscriptionBucketName
       Handler: process_transcription_full_text.lambda_handler
       MemorySize: 256
       Role:
