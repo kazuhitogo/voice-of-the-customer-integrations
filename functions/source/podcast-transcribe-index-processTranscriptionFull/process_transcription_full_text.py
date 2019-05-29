@@ -22,8 +22,11 @@ if os.getenv('LOG_LEVEL') == 'DEBUG':
     logger.setLevel(logging.DEBUG)
 else:
     logger.setLevel(logging.INFO)
+
 # Parameters
 REGION = os.getenv('AWS_REGION', default='us-east-1')
+# Check valid languages here: https://docs.aws.amazon.com/comprehend/latest/dg/API_BatchDetectEntities.html#comprehend-BatchDetectEntities-request-LanguageCode
+LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', default = "en")
 
 transcribe_client = boto3.client('transcribe', region_name=REGION)
 comprehend = boto3.client(service_name='comprehend', region_name=REGION)
@@ -61,7 +64,6 @@ class InvalidInputError(ValueError):
 def process_transcript(transcription_url, podcast_url, vocabulary_info):
     custom_vocabs = None
 
-    # job_status_response = transcribe_client.get_transcription_job(TranscriptionJobName=transcribe_job_id)
     response = urlopen(transcription_url)
     output = response.read()
     json_data = json.loads(output)
@@ -78,106 +80,107 @@ def process_transcript(transcription_url, podcast_url, vocabulary_info):
 
     if comprehend_chunks is not None and len(comprehend_chunks) > 0:
         start = time.time()
-        detected_entities_response = comprehend.batch_detect_entities(TextList=comprehend_chunks, LanguageCode='en')
+        detected_entities_response = comprehend.batch_detect_entities(TextList=comprehend_chunks, LanguageCode=LANGUAGE_CODE)
         round_trip = time.time() - start
         logger.info('End of batch_detect_entities. Took time {:10.4f}\n'.format(round_trip))
-    
+
         entities = parse_detected_entities_response(detected_entities_response, {})
 
         for entity_type in entities:
             entities_as_list[entity_type] = list(entities[entity_type])
-    
+
         clean_up_entity_results(entities_as_list)
         print(json.dumps(entities_as_list, indent=4))
-    
+
         start = time.time()
-        detected_phrase_response = comprehend.batch_detect_key_phrases(TextList=comprehend_chunks, LanguageCode='en')
+        detected_phrase_response = comprehend.batch_detect_key_phrases(TextList=comprehend_chunks, LanguageCode=LANGUAGE_CODE)
         round_trip = time.time() - start
         logger.info('End of batch_detect_key_phrases. Took time {:10.4f}\n'.format(round_trip))
-    
+
         key_phrases = parse_detected_key_phrases_response(detected_phrase_response)
         logger.debug(json.dumps(key_phrases, indent=4))
-        
+
     agentTranscript = ''
 
     #Agent is channel 1 now...
     for item in results['channel_labels']['channels'][1]['items']:
-    	if item['type'] == 'punctuation':
-    		filler = ''
-    	else:
-    		filler = ' '
-    	agentTranscript += filler + item['alternatives'][0]['content']
+        if item['type'] == 'punctuation':
+            filler = ''
+        else:
+            filler = ' '
+        agentTranscript += filler + item['alternatives'][0]['content']
 
     customerTranscript = ''
-    
-    #Agent is channel 0 now...
+
+    # Customer is channel 0 now...
     for item in results['channel_labels']['channels'][0]['items']:
-    	if item['type'] == 'punctuation':
-    		filler = ''
-    	else:
-    		filler = ' '
-    	customerTranscript += filler + item['alternatives'][0]['content']
+        if item['type'] == 'punctuation':
+            filler = ''
+        else:
+            filler = ' '
+        customerTranscript += filler + item['alternatives'][0]['content']
+
     agent = [agentTranscript]
     customer = [customerTranscript]
-#    agentTranscript = '\n\n'.join(agent)
-#    customerTranscript = '\n\n'.join(customer)
     agent_entities_as_list = {}
     detected_agent_phrase_response = ''
     agent_key_phrases = ''
     agent_sentiment = ''
-    
-    if len(agent) > 0 :
-        detected_agent_entities_response = comprehend.batch_detect_entities(TextList=agent[0:24], LanguageCode='en')
+
+    if len(agent) > 1 :
+        detected_agent_entities_response = comprehend.batch_detect_entities(TextList=agent[0:24], LanguageCode=LANGUAGE_CODE)
         round_trip = time.time() - start
         logger.info('End of batch_detect_entities. Took time {:10.4f}\n'.format(round_trip))
-    
+
         agent_entities = parse_detected_entities_response(detected_agent_entities_response, {})
 
         for entity_type in agent_entities:
             agent_entities_as_list[entity_type] = list(agent_entities[entity_type])
-    
+
         clean_up_entity_results(agent_entities_as_list)
         print(json.dumps(agent_entities_as_list, indent=4))
-    
+
         start = time.time()
-        detected_agent_phrase_response = comprehend.batch_detect_key_phrases(TextList=agent[0:24], LanguageCode='en')
+        detected_agent_phrase_response = comprehend.batch_detect_key_phrases(TextList=agent[0:24], LanguageCode=LANGUAGE_CODE)
         round_trip = time.time() - start
         logger.info('End of batch_detect_key_phrases. Took time {:10.4f}\n'.format(round_trip))
-    
+
         agent_key_phrases = parse_detected_key_phrases_response(detected_agent_phrase_response)
         logger.debug(json.dumps(key_phrases, indent=4))
-        
-        agent_sentiment = comprehend.detect_sentiment(Text=agentTranscript[0:5000], LanguageCode='en')['Sentiment']
-        
+
+        agent_sentiment = comprehend.detect_sentiment(Text=agentTranscript[0:5000], LanguageCode=LANGUAGE_CODE)['Sentiment']
+
         print('agent sentiment ' + agent_sentiment)
-       
+
     customer_entities = {}
     customer_entities_as_list = {}
     customer_key_phrases = ''
     customer_sentiment = ''
-    
-    if len(customer) > 0 :
-        detected_agent_entities_response = comprehend.batch_detect_entities(TextList=customer[0:24], LanguageCode='en')
+
+    if len(customer) > 1 :
+        logger.info("CUSTOMER " + json.dumps(customer))
+        logger.info("CUSTOMER[0:24] " + json.dumps(customer[0:24]))
+        detected_agent_entities_response = comprehend.batch_detect_entities(TextList=customer[0:24], LanguageCode=LANGUAGE_CODE)
         round_trip = time.time() - start
         logger.info('End of batch_detect_entities. Took time {:10.4f}\n'.format(round_trip))
-    
+
         customer_entities = parse_detected_entities_response(detected_agent_entities_response, {})
 
         for entity_type in customer_entities:
             customer_entities_as_list[entity_type] = list(customer_entities[entity_type])
-    
+
         clean_up_entity_results(agent_entities_as_list)
         print(json.dumps(agent_entities_as_list, indent=4))
-    
+
         start = time.time()
-        detected_agent_phrase_response = comprehend.batch_detect_key_phrases(TextList=customer[0:24], LanguageCode='en')
+        detected_agent_phrase_response = comprehend.batch_detect_key_phrases(TextList=customer[0:24], LanguageCode=LANGUAGE_CODE)
         round_trip = time.time() - start
         logger.info('End of batch_detect_key_phrases. Took time {:10.4f}\n'.format(round_trip))
-    
+
         customer_key_phrases = parse_detected_key_phrases_response(detected_agent_phrase_response)
         logger.debug(json.dumps(key_phrases, indent=4))
-        
-        customer_sentiment = comprehend.detect_sentiment(Text=customerTranscript[0:5000], LanguageCode='en')['Sentiment']
+
+        customer_sentiment = comprehend.detect_sentiment(Text=customerTranscript[0:5000], LanguageCode=LANGUAGE_CODE)['Sentiment']
 
         print('customer sentiment ' + customer_sentiment)
 
@@ -207,66 +210,53 @@ def process_transcript(transcription_url, podcast_url, vocabulary_info):
 def chunk_up_transcript(custom_vocabs, results):
     # Here is the JSON returned by the Amazon Transcription SDK
     # {
-    #  "jobName":"JobName",
+    #  "status":"Completed",
     #  "accountId":"Your AWS Account Id",
     #  "results":{
     #    "transcripts":[
     #        {
-    #            "transcript":"ah ... this is the text of the transcript"
+    #            "transcript":"Hello ... this is the text of the transcript"
     #        }
     #    ],
-    #     "speaker_labels": {
-    #       "speakers": 2,
-    #       "segments": [
+    #     "channel_labels": {
+    #       "number_of_channels": 2,
+    #       "channels": [
     #         {
-    #           "start_time": "0.0",
-    #           "speaker_label": "spk_1",
-    #           "end_time": "23.84",
+    #           "channel_label": "ch_0"
     #           "items": [
-    #               {
-    #                   "start_time": "23.84",
-    #                   "speaker_label": "spk_0",
-    #                   "end_time": "24.87",
-    #                   "items": [
-    #                       {
-    #                           "start_time": "24.063",
-    #                           "speaker_label": "spk_0",
-    #                           "end_time": "24.273"
-    #                       },
-    #                       {
-    #                           "start_time": "24.763",
-    #                           "speaker_label": "spk_0",
-    #                           "end_time": "25.023"
-    #                       }
-    #                   ]
-    #               }
+    #             {
+    #               "start_time": "23.84",
+    #               "type": "pronunciation",
+    #               "end_time": "24.87",
+    #               "alternatives": [
+    #                 {
+    #                   "content": "Hello",
+    #                   "confidence": "1.0000"
+    #                 }
+    #               ]
+    #             }
     #           ]
-    #         ]
-    #      },
-    #    "items":[
+    #         }
+    #       ]
+    #     },
+    #     "items":[
     #        {
     #            "start_time":"0.630",
     #            "end_time":"5.620",
     #            "alternatives": [
     #                {
-    #                    "confidence":"0.7417",
-    #                    "content":"ah"
+    #                    "confidence":"1.0000",
+    #                    "content":"Hello"
     #                }
     #            ],
-    #            "type":"pronunciation"
+    #            "type":"pronunciation",
+    #            "channel_label": "ch_0"
     #        }
     #     ]
     #  }
 
 
-    speaker_label_exist = False
-    speaker_segments = None
-    if 'speaker_labels' in results:
-        speaker_label_exist = True
-        speaker_segments = parse_speaker_segments(results)
-
     items = results['items']
-    last_speaker = None
     paragraphs = []
     current_paragraph = ""
     comprehend_chunks = []
@@ -278,17 +268,8 @@ def chunk_up_transcript(custom_vocabs, results):
         if item["type"] == "pronunciation":
             start_time = float(item['start_time'])
 
-            if speaker_label_exist:
-                current_speaker = get_speaker_label(speaker_segments, float(item['start_time']))
-                if last_speaker is None or current_speaker != last_speaker:
-                    if current_paragraph is not None:
-                        paragraphs.append(current_paragraph)
-                    current_paragraph = current_speaker + " :"
-                    last_pause = start_time
-                last_speaker = current_speaker
-
-            elif (start_time - previous_time) > 2 or (
-                            (start_time - last_pause) > 15 and last_item_was_sentence_end):
+            if (start_time - previous_time) > 2 or (
+                    (start_time - last_pause) > 15 and last_item_was_sentence_end):
                 last_pause = start_time
                 if current_paragraph is not None or current_paragraph != "":
                     paragraphs.append(current_paragraph)
@@ -383,7 +364,6 @@ def parse_detected_entities_response(detected_entities_response, entities):
 
     if 'ResultList' in detected_entities_response:
         result_list = detected_entities_response["ResultList"]
-        # entities = {}
         for result in result_list:
             detected_entities = result["Entities"]
             for detected_entity in detected_entities:
@@ -406,26 +386,6 @@ def parse_detected_entities_response(detected_entities_response, entities):
     else:
         return {}
 
-
-def get_speaker_label(speaker_segments, start_time):
-    for segment in speaker_segments:
-        if segment['start_time'] <= start_time < segment['end_time']:
-            return segment['speaker']
-    return None
-
-
-def parse_speaker_segments(results):
-    speaker_labels = results['speaker_labels']['segments']
-    speaker_segments = []
-    for label in speaker_labels:
-        segment = dict()
-        segment["start_time"] = float(label["start_time"])
-        segment["end_time"] = float(label["end_time"])
-        segment["speaker"] = label["speaker_label"]
-        speaker_segments.append(segment)
-    return speaker_segments
-
-
 def lambda_handler(event, context):
     """
         AWS Lambda handler
@@ -437,7 +397,4 @@ def lambda_handler(event, context):
     # Pull the signed URL for the payload of the transcription job
     transcription_url = event['transcribeStatus']['transcriptionUrl']
 
-    vocab_info = None
-    if 'vocabularyInfo' in event:
-        vocab_info = event['vocabularyInfo']
-    return process_transcript(transcription_url, None, None) #event['podcastUrl'], vocab_info)
+    return process_transcript(transcription_url)

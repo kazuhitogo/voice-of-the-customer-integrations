@@ -11,21 +11,20 @@ from botocore.config import Config
 # Log level
 logging.basicConfig()
 logger = logging.getLogger()
-if os.getenv('LOG_LEVEL') == 'DEBUG':
-    logger.setLevel(logging.DEBUG)
-else:
-    logger.setLevel(logging.INFO)
-
 
 class ThrottlingException(Exception):
     pass
-
 
 CONTENT_TYPE_TO_MEDIA_FORMAT = {
     "audio/mpeg": "mp3",
     "audio/wav": "wav",
     "audio/flac": "flac",
     "audio/mp4a-latm": "mp4"}
+
+# Check valid language codes here: https://docs.aws.amazon.com/transcribe/latest/dg/API_StartTranscriptionJob.html#transcribe-StartTranscriptionJob-request-LanguageCode
+# Note that you should also check the valid languages in AWS Comprehend. If you choose to transcribe in a language
+# That is not supported by AWS Comprehend, the comprehension analysis will not work.
+LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', default = "en-US")
 
 
 class InvalidInputError(ValueError):
@@ -62,12 +61,12 @@ def lambda_handler(event, context):
     jobname = id_generator()
 
     # Extract the bucket and key from the downloadPodcast lambda function
-    bucket = event['audioS3Location']['bucket']
-    key = event['audioS3Location']['key']
-
+    bucket = event['bucket']
+    key = event['key']
     content_type = event['audio_type']
     if content_type not in CONTENT_TYPE_TO_MEDIA_FORMAT:
         raise InvalidInputError(content_type + " is not supported audio type.")
+
     media_type = CONTENT_TYPE_TO_MEDIA_FORMAT[content_type]
     logger.info("media type: " + content_type)
 
@@ -75,21 +74,16 @@ def lambda_handler(event, context):
     url = "https://s3-" + region + ".amazonaws.com/" + bucket + "/" + key
 
     try:
-        showSpeakerLabels = (int(event['speakers']) > 1)
-
         settings = {
-            'VocabularyName': event['vocabularyInfo']['name'],
-            'ShowSpeakerLabels': False
+            'ChannelIdentification': True
         }
 
-        if int(event['speakers']) > 1:
-            settings['ShowSpeakerLabels'] = True
-            settings['MaxSpeakerLabels'] = int(event['speakers'])
+        print('url: ' + url)
 
         # Call the AWS SDK to initiate the transcription job.
         response = client.start_transcription_job(
             TranscriptionJobName=jobname,
-            LanguageCode='en-US',
+            LanguageCode=LANGUAGE_CODE,
             Settings=settings,
             MediaFormat=media_type,
             Media={
