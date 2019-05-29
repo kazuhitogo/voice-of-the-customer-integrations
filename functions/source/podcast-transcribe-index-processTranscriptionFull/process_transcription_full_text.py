@@ -1,15 +1,12 @@
 from __future__ import print_function  # Python 2/3 compatibility
 
 import boto3
-import botocore
 import os
 import logging
 import time
 import json
-# import urllib.request
 from urllib2 import urlopen
 import string
-import random
 from common_lib import find_duplicate_person, id_generator
 
 # from requests_aws_sign import AWSV4Sign
@@ -61,7 +58,7 @@ class InvalidInputError(ValueError):
     pass
 
 
-def process_transcript(transcription_url, podcast_url, vocabulary_info):
+def process_transcript(transcription_url):
     custom_vocabs = None
 
     response = urlopen(transcription_url)

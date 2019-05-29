@@ -21,6 +21,11 @@ CONTENT_TYPE_TO_MEDIA_FORMAT = {
     "audio/flac": "flac",
     "audio/mp4a-latm": "mp4"}
 
+# Check valid language codes here: https://docs.aws.amazon.com/transcribe/latest/dg/API_StartTranscriptionJob.html#transcribe-StartTranscriptionJob-request-LanguageCode
+# Note that you should also check the valid languages in AWS Comprehend. If you choose to transcribe in a language
+# That is not supported by AWS Comprehend, the comprehension analysis will not work.
+LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', default = "en-US")
+
 
 class InvalidInputError(ValueError):
     pass
@@ -46,6 +51,8 @@ client = boto3.client('transcribe', config=config)
 
 # Entrypoint for lambda funciton
 def lambda_handler(event, context):
+    print("Received event" + json.dumps(event, indent=4))
+
     session = boto3.session.Session()
     region = session.region_name
 
@@ -61,18 +68,15 @@ def lambda_handler(event, context):
     content_type = event['audio_type']
     if content_type not in CONTENT_TYPE_TO_MEDIA_FORMAT:
         raise InvalidInputError(content_type + " is not supported audio type.")
-        
+
     media_type = CONTENT_TYPE_TO_MEDIA_FORMAT[content_type]
     logger.info("media type: " + content_type)
 
     # Assemble the url for the object for transcribe. It must be an s3 url in the region
     url = "https://s3-" + region + ".amazonaws.com/" + bucket + "/" + key
-    #url = "https://s3.amazonaws.com/" + bucket + "/" + key
 
     try:
         settings = {
-#            'ShowSpeakerLabels': True,
-#            'MaxSpeakerLabels': 2,
             'ChannelIdentification': True
         }
 
@@ -81,7 +85,7 @@ def lambda_handler(event, context):
         # Call the AWS SDK to initiate the transcription job.
         response = client.start_transcription_job(
             TranscriptionJobName=jobname,
-            LanguageCode='en-US',
+            LanguageCode=LANGUAGE_CODE,
             Settings=settings,
             MediaFormat=media_type,
             Media={

@@ -6,9 +6,7 @@ import json
 import os
 from aws_requests_auth.aws_auth import AWSRequestsAuth
 from elasticsearch import Elasticsearch, RequestsHttpConnection
-from elasticsearch import helpers
 import logging
-import time
 
 # Log level
 logging.basicConfig()
@@ -49,6 +47,8 @@ es = Elasticsearch(
 
 # Entry point into the lambda function
 def lambda_handler(event, context):
+    print("Received event" + json.dumps(event, indent=4))
+
     fullEpisodeS3Location = event["processedTranscription"][0]
     index_episode(es, event, fullEpisodeS3Location)
     return
@@ -62,7 +62,7 @@ def index_episode(es, event, fullEpisodeS3Location):
     s3_location = "s3://" + event['bucket'] + "/" + event['key']
 
     s = event['key'].split('_')[1]
-    
+
     contact_id = event['key'].split('/')[-1].split('_')[0]
 
     updateDoc = {
@@ -83,8 +83,8 @@ def index_episode(es, event, fullEpisodeS3Location):
             'agent_sentiment': fullepisode['agent_sentiment'],
             'customer_sentiment': fullepisode['customer_sentiment'],
             'type': 'CallRecord'
-            },
+        },
         "doc_as_upsert" : True
     }
 
-    res = es.update(index=FULL_EPISODE_INDEX, doc_type=FULL_EPISODE_DOCTYPE, body=updateDoc, id=contact_id)
+    es.update(index=FULL_EPISODE_INDEX, doc_type=FULL_EPISODE_DOCTYPE, body=updateDoc, id=contact_id)
