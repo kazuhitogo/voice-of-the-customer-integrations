@@ -62,7 +62,7 @@ def lambda_handler(event, context):
     # Create a random name for the transcription job
     jobname = id_generator()
 
-    # Extract the bucket and key from the downloadPodcast lambda function
+    # Extract the bucket and key from the lambda function
     bucket = event['bucket']
     key = event['key']
     content_type = event['audio_type']

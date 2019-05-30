@@ -81,13 +81,11 @@ Resources:
         QSS3KeyPrefix: !Ref 'QSS3KeyPrefix'
         LambdaZipObjects: !Join
           - ','
-          - - functions/packages/checkElasticsearchStatus/lambda.zip
+          - - functions/packages/CheckElasticsearchStatus/lambda.zip
             - functions/packages/CheckTranscriptionJob/lambda.zip
-            - functions/packages/elasticsearchCognito/lambda.zip
+            - functions/packages/ElasticsearchCognito/lambda.zip
             - functions/packages/IndexCTRInElasticSearch/lambda.zip
             - functions/packages/IndexS3TranscriptionDataIntoES/lambda.zip
-            - functions/packages/podcast-transcribe-index-podcastTranscribe/lambda.zip
-            - functions/packages/podcast-transcribe-index-processTranscriptionFull/lambda.zip
             - functions/packages/ProcessTranscription/lambda.zip
             - functions/packages/S3ProcessNewAudio/lambda.zip
             - functions/packages/StartTranscriptionJob/lambda.zip
@@ -176,7 +174,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/elasticsearchCognito/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/ElasticsearchCognito/lambda.zip'
       Description: ''
       Environment:
         Variables:
@@ -195,7 +193,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/checkElasticsearchStatus/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/CheckElasticsearchStatus/lambda.zip'
       Description: ''
       Handler: elasticsearch-cognito.check_status
       MemorySize: 128
@@ -239,9 +237,9 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/podcast-transcribe-index-podcastTranscribe/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/StartTranscriptionJob/lambda.zip'
       Description: 'Lambda funcion that starts the Transcription job'
-      Handler: podcast_transcribe.lambda_handler
+      Handler: start_transcription.lambda_handler
       MemorySize: 256
       Role:
         Fn::GetAtt:
@@ -269,13 +267,13 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/podcast-transcribe-index-processTranscriptionFull/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/ProcessTranscription/lambda.zip'
       Description: 'Lambda funcion that starts the Transcription job'
       Environment:
         Variables:
           BUCKET_NAME:
             Ref: AudioTranscriptionBucketName
-      Handler: process_transcription_full_text.lambda_handler
+      Handler: process_transcription.lambda_handler
       MemorySize: 256
       Role:
         Fn::GetAtt:

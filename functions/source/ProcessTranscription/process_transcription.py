@@ -25,27 +25,11 @@ REGION = os.getenv('AWS_REGION', default='us-east-1')
 # Check valid languages here: https://docs.aws.amazon.com/comprehend/latest/dg/API_BatchDetectEntities.html#comprehend-BatchDetectEntities-request-LanguageCode
 LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', default = "en")
 
-transcribe_client = boto3.client('transcribe', region_name=REGION)
 comprehend = boto3.client(service_name='comprehend', region_name=REGION)
 
 commonDict = {'i': 'I'}
 
 ENTITY_CONFIDENCE_THRESHOLD = 0.5
-
-KEY_PHRASES_CONFIDENCE_THRESHOLD = 0.7
-
-# get the Elasticsearch endpoint from the environment variables
-ES_ENDPOINT = os.getenv('ES_ENDPOINT', default='search-podcasts-fux2acvdz4giniry55uf23yc2i.us-east-1.es.amazonaws.com')
-
-# get the Elasticsearch index name from the environment variables
-ES_INDEX = os.getenv('ES_INDEX', default='podcasts')
-
-# get the Elasticsearch document type from the environment variables
-ES_DOCTYPE = os.getenv('ES_DOCTYPE', default='episode')
-
-# Establish credentials
-session_var = boto3.session.Session()
-credentials = session_var.get_credentials()
 
 s3_client = boto3.client("s3")
 
