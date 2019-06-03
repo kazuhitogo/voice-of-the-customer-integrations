@@ -22,6 +22,8 @@ Metadata:
         default: Quick Start S3 Bucket Name
       QSS3KeyPrefix:
         default: Quick Start S3 Key Prefix
+      ContactFlowLogGroup:
+        default: Where the logs are stored for your Amazon Connect instance
 Parameters:
   kibanaUser:
     Default: kibana
@@ -61,6 +63,10 @@ Parameters:
       S3 key prefix for the Quick Start assets. Quick Start key prefix
       can include numbers, lowercase letters, uppercase letters, hyphens (-), and
       forward slash (/).
+    Type: String
+  ContactFlowLogGroup:
+    Default: /aws/connect/instancename
+    Description: Amazon Connect contact flow Cloudwatch Logs group
     Type: String
 Conditions:
   GovCloudCondition: !Equals [!Ref 'AWS::Region', us-gov-west-1]
@@ -216,7 +222,7 @@ Resources:
             Fn::GetAtt:
               - CallsElasticSearch
               - DomainEndpoint
-          ES_EPISODE_INDEX: 'reinvent-2018-workshop'
+          ES_EPISODE_INDEX: 'call-transcript'
       Handler: upload_to_elasticsearch.lambda_handler
       MemorySize: 256
       Role:
@@ -294,7 +300,7 @@ Resources:
             Fn::GetAtt:
               - CallsElasticSearch
               - DomainEndpoint
-          ES_EPISODE_INDEX: 'reinvent-2018-workshop'
+          ES_EPISODE_INDEX: 'ctr'
       Events:
         Stream:
           Type: Kinesis
@@ -402,11 +408,12 @@ Resources:
     Properties:
       ElasticsearchVersion: '6.3'
       ElasticsearchClusterConfig:
-        InstanceCount: 1
+        InstanceCount: 2
         InstanceType: 'm4.large.elasticsearch'
+        ZoneAwarenessEnabled: true
       EBSOptions:
         EBSEnabled: true
-        VolumeSize: 10
+        VolumeSize: 512
         VolumeType: gp2
       AccessPolicies:
         Version: 2012-10-17
@@ -416,6 +423,261 @@ Resources:
               AWS: !Join [':', ['arn:aws:iam:', !Ref 'AWS::AccountId', 'root']]
             Action: 'es:*'
             Resource: '*'
+  AgentKinesisStream:
+    Properties:
+      ShardCount: 2
+    Type: 'AWS::Kinesis::Stream'
+  AmznConnectAgentDeliveryStream:
+    Properties:
+      DeliveryStreamType: KinesisStreamAsSource
+      ElasticsearchDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 1
+        DomainARN:
+          'Fn::GetAtt':
+            - CallsElasticSearch
+            - DomainArn
+        IndexName: agent-logs
+        IndexRotationPeriod: OneHour
+        RetryOptions:
+          DurationInSeconds: 100
+        RoleARN:
+          'Fn::GetAtt':
+            - FirehoseRole
+            - Arn
+        S3BackupMode: AllDocuments
+        S3Configuration:
+          BucketARN:
+            'Fn::GetAtt':
+              - AmznConnectOutputBucket
+              - Arn
+          BufferingHints:
+            IntervalInSeconds: 60
+            SizeInMBs: 1
+          CompressionFormat: GZIP
+          Prefix: agent-firehose-output/
+          RoleARN:
+            'Fn::GetAtt':
+              - FirehoseRole
+              - Arn
+        TypeName: AmznConnect
+      KinesisStreamSourceConfiguration:
+        KinesisStreamARN:
+          'Fn::GetAtt':
+            - AgentKinesisStream
+            - Arn
+        RoleARN:
+          'Fn::GetAtt':
+            - FirehoseRole
+            - Arn
+    Type: 'AWS::KinesisFirehose::DeliveryStream'
+  AmznConnectOutputBucket:
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - ExpirationInDays: 180
+            Id: Move data to Glacier after 30 days and delete after 180 days.
+            Status: Enabled
+            Transitions:
+              - StorageClass: Glacier
+                TransitionInDays: 30
+    Type: 'AWS::S3::Bucket'
+  ContactFlowLogFilter:
+    DependsOn: CwLogsToElasticsearchLambdaInvoke
+    Properties:
+      DestinationArn:
+        'Fn::GetAtt':
+          - CwLogsToElasticsearchLambda
+          - Arn
+      FilterPattern: ''
+      LogGroupName:
+        Ref: ContactFlowLogGroup
+    Type: 'AWS::Logs::SubscriptionFilter'
+  CwLogsToElasticsearchLambda:
+    Properties:
+      CodeUri: 's3://connect-blogs-west/elasticsearch/CwLogsToElasticsearchLambda.zip' # TODO
+      Description: Contact flow Cloudwatch logs to Amazon Elasticsearch and S3
+      Environment:
+        Variables:
+          ES_ENDPOINT:
+            'Fn::GetAtt':
+              - CallsElasticSearch
+              - DomainEndpoint
+          S3_BUCKET:
+            Ref: AmznConnectOutputBucket
+          S3_PREFIX: contactflowlogs-output/
+      Handler: index.handler
+      MemorySize: 128
+      Role:
+        'Fn::GetAtt':
+          - CwLogsToElasticsearchLambdaRole
+          - Arn
+      Runtime: nodejs8.10
+      Timeout: 300
+    Type: 'AWS::Serverless::Function'
+  CwLogsToElasticsearchLambdaInvoke:
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName:
+        'Fn::GetAtt':
+          - CwLogsToElasticsearchLambda
+          - Arn
+      Principal:
+        'Fn::Join':
+          - ''
+          - - logs.
+            - Ref: 'AWS::Region'
+            - .amazonaws.com
+      SourceAccount:
+        Ref: 'AWS::AccountId'
+      SourceArn:
+        'Fn::Join':
+          - ':'
+          - - 'arn:aws:logs'
+            - Ref: 'AWS::Region'
+            - Ref: 'AWS::AccountId'
+            - log-group
+            - Ref: ContactFlowLogGroup
+            - '*'
+    Type: 'AWS::Lambda::Permission'
+  CwLogsToElasticsearchLambdaRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - 'es:ESHttpPost'
+                Effect: Allow
+                Resource:
+                  'Fn::Join':
+                    - /
+                    - - 'Fn::GetAtt':
+                          - CallsElasticSearch
+                          - DomainArn
+                      - '*'
+              - Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                  - 'logs:GetLogEvents'
+                  - 'logs:DescribeLogStreams'
+                Effect: Allow
+                Resource:
+                  - 'arn:aws:logs:*:*:*'
+              - Action:
+                  - 's3:AbortMultipartUpload'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:PutObject'
+                Effect: Allow
+                Resource:
+                  - 'Fn::GetAtt':
+                      - AmznConnectOutputBucket
+                      - Arn
+                  - 'Fn::Join':
+                      - /
+                      - - 'Fn::GetAtt':
+                            - AmznConnectOutputBucket
+                            - Arn
+                        - '*'
+            Version: 2012-10-17
+          PolicyName: amznConnect-logsToElasticsearchPolicy
+    Type: 'AWS::IAM::Role'
+  FirehoseRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId':
+                  Ref: 'AWS::AccountId'
+            Effect: Allow
+            Principal:
+              Service:
+                - firehose.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - 's3:AbortMultipartUpload'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:PutObject'
+                Effect: Allow
+                Resource:
+                  - 'Fn::GetAtt':
+                      - AmznConnectOutputBucket
+                      - Arn
+                  - 'Fn::Join':
+                      - /
+                      - - 'Fn::GetAtt':
+                            - AmznConnectOutputBucket
+                            - Arn
+                        - '*'
+              - Action:
+                  - 'kinesis:DescribeStream'
+                  - 'kinesis:GetShardIterator'
+                  - 'kinesis:GetRecords'
+                Effect: Allow
+                Resource:
+                  - 'Fn::GetAtt':
+                      - AgentKinesisStream
+                      - Arn
+              - Action:
+                  - 'kms:Decrypt'
+                Condition:
+                  StringEquals:
+                    'kms:ViaService':
+                      'Fn::Join':
+                        - .
+                        - - kinesis
+                          - Ref: 'AWS::Region'
+                          - amazonaws.com
+                  StringLike:
+                    'kms:EncryptionContext:aws:kinesis:arn':
+                      - 'Fn::GetAtt':
+                          - AgentKinesisStream
+                          - Arn
+                Effect: Allow
+                Resource: 'arn:aws:kms:region:accountid:key/%SSE_KEY_ARN%'
+              - Action:
+                  - 'es:DescribeElasticsearchDomain'
+                  - 'es:DescribeElasticsearchDomains'
+                  - 'es:DescribeElasticsearchDomainConfig'
+                  - 'es:ESHttpPost'
+                  - 'es:ESHttpPut'
+                  - 'es:ESHttpGet'
+                Effect: Allow
+                Resource:
+                  - 'Fn::GetAtt':
+                      - CallsElasticSearch
+                      - DomainArn
+                  - 'Fn::Join':
+                      - /
+                      - - 'Fn::GetAtt':
+                            - CallsElasticSearch
+                            - DomainArn
+                        - '*'
+            Version: 2012-10-17
+          PolicyName: amznConnect-firehoseRolePolicy
+    Type: 'AWS::IAM::Role'
 # End Other Resources
 
 Outputs:
@@ -438,4 +700,27 @@ Outputs:
         - ESCognito
         - KibanaUser
 
+  AgentOutputLocation:
+    Description: S3 agent logs location.
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}-AgentLogsS3Uri'
+    Value:
+      'Fn::Join':
+        - ''
+        - - 's3://'
+          - Ref: AmznConnectOutputBucket
+          - /agent-firehose-output/
+
+  ContactFlowLogsOutputLocation:
+    Description: S3 contact flow logs location.
+    Export:
+      Name:
+        'Fn::Sub': '${AWS::StackName}-ContactFlowS3Uri'
+    Value:
+      'Fn::Join':
+        - ''
+        - - 's3://'
+          - Ref: AmznConnectOutputBucket
+          - /contactflowlogs-output/
 Transform: AWS::Serverless-2016-10-31

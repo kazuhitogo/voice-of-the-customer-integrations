@@ -108,7 +108,7 @@ def process_transcript(transcription_url):
     agent_key_phrases = ''
     agent_sentiment = ''
 
-    if len(agent) > 1 :
+    if agent[0] != '' :
         detected_agent_entities_response = comprehend.batch_detect_entities(TextList=agent[0:24], LanguageCode=LANGUAGE_CODE)
         round_trip = time.time() - start
         logger.info('End of batch_detect_entities. Took time {:10.4f}\n'.format(round_trip))
@@ -138,7 +138,7 @@ def process_transcript(transcription_url):
     customer_key_phrases = ''
     customer_sentiment = ''
 
-    if len(customer) > 1 :
+    if customer[0] != '' :
         logger.info("CUSTOMER " + json.dumps(customer))
         logger.info("CUSTOMER[0:24] " + json.dumps(customer[0:24]))
         detected_agent_entities_response = comprehend.batch_detect_entities(TextList=customer[0:24], LanguageCode=LANGUAGE_CODE)
