@@ -496,7 +496,9 @@ Resources:
     Type: 'AWS::Logs::SubscriptionFilter'
   CwLogsToElasticsearchLambda:
     Properties:
-      CodeUri: 's3://connect-blogs-west/elasticsearch/CwLogsToElasticsearchLambda.zip' # TODO
+      CodeUri:
+        Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/CWLToElasticSearchLambda/lambda.zip'
       Description: Contact flow Cloudwatch logs to Amazon Elasticsearch and S3
       Environment:
         Variables:
