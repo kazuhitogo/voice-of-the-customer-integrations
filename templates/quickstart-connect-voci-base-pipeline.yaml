@@ -215,7 +215,7 @@ Resources:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub '${QSS3KeyPrefix}functions/packages/IndexS3TranscriptionDataIntoES/lambda.zip'
-      Description: 'Lambda funcion that indexes the Transcription and NLP entties/keyphrases'
+      Description: 'Lambda function that indexes the Transcription and NLP entties/keyphrases'
       Environment:
         Variables:
           ES_DOMAIN:
@@ -244,7 +244,7 @@ Resources:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub '${QSS3KeyPrefix}functions/packages/StartTranscriptionJob/lambda.zip'
-      Description: 'Lambda funcion that starts the Transcription job'
+      Description: 'Lambda function that starts the Transcription job'
       Handler: start_transcription.lambda_handler
       MemorySize: 256
       Role:
@@ -259,7 +259,7 @@ Resources:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub '${QSS3KeyPrefix}functions/packages/CheckTranscriptionJob/lambda.zip'
-      Description: 'Lambda funcion that starts the Transcription job'
+      Description: 'Lambda function that checks the status of the Transcription job'
       Handler: check_transcribe.lambda_handler
       MemorySize: 256
       Role:
@@ -274,7 +274,7 @@ Resources:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub '${QSS3KeyPrefix}functions/packages/ProcessTranscription/lambda.zip'
-      Description: 'Lambda funcion that starts the Transcription job'
+      Description: 'Lambda function that processes the Transcription job'
       Environment:
         Variables:
           BUCKET_NAME:
@@ -293,7 +293,7 @@ Resources:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub '${QSS3KeyPrefix}functions/packages/IndexCTRInElasticSearch/lambda.zip'
-      Description: 'Lambda funcion that starts the Transcription job'
+      Description: 'Lambda function that indexes the CTR into Elastic Search'
       Environment:
         Variables:
           ES_DOMAIN:
@@ -322,7 +322,7 @@ Resources:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub '${QSS3KeyPrefix}functions/packages/S3ProcessNewAudio/lambda.zip'
-      Description: 'Lambda funcion that starts the Transcription job'
+      Description: 'Lambda function that starts the step function'
       Environment:
         Variables:
           STEP_FUNCTIONS_ARN: !Ref processAudioFile

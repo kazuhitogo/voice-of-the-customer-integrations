@@ -15,7 +15,7 @@ logger = logging.getLogger()
 # Parameters
 REGION = os.getenv('AWS_REGION', default='us-east-1')
 esendpoint = os.environ['ES_DOMAIN']
-FULL_EPISODE_INDEX = os.getenv('ES_EPISODE_INDEX', default='reinvent-2018-workshop')
+FULL_EPISODE_INDEX = os.getenv('ES_EPISODE_INDEX', default='call-transcript')
 FULL_EPISODE_DOCTYPE = os.getenv('FULL_EPISODE_DOCTYPE', default='doc')
 
 
