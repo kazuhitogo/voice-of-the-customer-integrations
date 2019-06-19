@@ -8,6 +8,9 @@ This solution is based off of two initial solutions:
 
 - Create an S3 bucket with a top level folder and copy all files into it from GitHub (https://github.com/aws-quickstart/quickstart-connect-voci)
 - Create a stack with the template url set to the s3 bucket you just created under /templates/quickstart-connect-voci-base-pipeline.yaml
+    - The QuickSight S3 bucket and folder should be set to the one that you created in step one
+    - The S3 audio bucket will be a new bucket, so add a globally unique name
+    - The log group is the log group set for the Amazon Connect instance you want to use. You can see the value in the Amazon Connect AWS Console when viewing the instance details under Contact Flow.
 - Once the stacks deploy, update your Amazon Connect instance to use the new resources created
     - S3 call recording bucket: the one created by the CF stack
     - Data Streaming CTR: the one created by the CF stack with "AmazonConnectCtrDelivery" in the name (not the Connect-CTR-Stream) **double check this**
