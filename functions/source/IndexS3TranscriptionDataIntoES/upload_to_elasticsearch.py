@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import boto3
 import certifi
 import json
@@ -13,7 +11,7 @@ logging.basicConfig()
 logger = logging.getLogger()
 
 # Parameters
-REGION = os.getenv('AWS_REGION', default='us-east-1')
+REGION = os.getenv('AWS_REGION')
 esendpoint = os.environ['ES_DOMAIN']
 FULL_EPISODE_INDEX = os.getenv('ES_EPISODE_INDEX', default='call-transcript')
 FULL_EPISODE_DOCTYPE = os.getenv('FULL_EPISODE_DOCTYPE', default='doc')
@@ -47,8 +45,6 @@ es = Elasticsearch(
 
 # Entry point into the lambda function
 def lambda_handler(event, context):
-    print("Received event" + json.dumps(event, indent=4))
-
     fullEpisodeS3Location = event["processedTranscription"][0]
     index_episode(es, event, fullEpisodeS3Location)
     return

@@ -1,4 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
 Description: Connect - Comprehend/Transcribe Connect Demo
 Metadata:
   AWS::CloudFormation::Interface:
@@ -68,8 +69,6 @@ Parameters:
     Default: /aws/connect/instancename
     Description: Amazon Connect contact flow Cloudwatch Logs group
     Type: String
-Conditions:
-  GovCloudCondition: !Equals [!Ref 'AWS::Region', us-gov-west-1]
 Resources:
   #CF Stacks
   LPStack:
@@ -78,10 +77,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL:
-        !Sub [
-          'https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}templates/voci-lambda-portability.yaml',
-          { QSS3Region: !If [GovCloudCondition, s3-us-gov-west-1, s3] },
-        ]
+        !Sub "http://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/voci-lambda-portability.yaml"
       Parameters:
         QSS3BucketName: !Ref 'QSS3BucketName'
         QSS3KeyPrefix: !Ref 'QSS3KeyPrefix'
@@ -95,6 +91,7 @@ Resources:
             - functions/packages/ProcessTranscription/lambda.zip
             - functions/packages/S3ProcessNewAudio/lambda.zip
             - functions/packages/StartTranscriptionJob/lambda.zip
+            - functions/packages/CWLToElasticSearchLambda/lambda.zip
     # End Lambda Portability stack
   #**********************************
   CognitoStack:
@@ -103,14 +100,11 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL:
-        !Sub [
-          'https://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}templates/voci-cognito.yaml',
-          { QSS3Region: !If [GovCloudCondition, s3-us-gov-west-1, s3] },
-        ]
+        !Sub "http://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/voci-cognito.yaml"
     # End Cognito Stack
   #**********************************
   # End CF Stacks
-  #S3 Buckets
+  # S3 Buckets
   AudioTranscriptionBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -160,7 +154,7 @@ Resources:
             Effect: Allow
             Principal:
               Service:
-                - Fn::Sub: states.${AWS::Region}.amazonaws.com
+                - !Sub states.${AWS::Region}.amazonaws.com
         Version: '2012-10-17'
       Policies:
         - PolicyDocument:
@@ -188,11 +182,9 @@ Resources:
             Ref: CfnStepFunction
       Handler: elasticsearch-cognito.lambda_handler
       MemorySize: 512
-      Role:
-        Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
-      Runtime: python2.7
+      Role: 
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
       Timeout: 240
   checkElasticsearchStatus:
     Type: AWS::Serverless::Function
@@ -203,11 +195,9 @@ Resources:
       Description: ''
       Handler: elasticsearch-cognito.check_status
       MemorySize: 128
-      Role:
-        Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
-      Runtime: python2.7
+      Role: 
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
       Timeout: 15
   indexIntoElasticsearch:
     Type: AWS::Serverless::Function
@@ -219,17 +209,13 @@ Resources:
       Environment:
         Variables:
           ES_DOMAIN:
-            Fn::GetAtt:
-              - CallsElasticSearch
-              - DomainEndpoint
+            !GetAtt CallsElasticSearch.DomainEndpoint
           ES_EPISODE_INDEX: 'call-transcript'
       Handler: upload_to_elasticsearch.lambda_handler
       MemorySize: 256
       Role:
-        Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
-      Runtime: python2.7
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
       Timeout: 60
       Events:
         Stream:
@@ -248,10 +234,8 @@ Resources:
       Handler: start_transcription.lambda_handler
       MemorySize: 256
       Role:
-        Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
-      Runtime: python2.7
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
       Timeout: 60
   checkTranscriptionJob:
     Type: AWS::Serverless::Function
@@ -263,10 +247,8 @@ Resources:
       Handler: check_transcribe.lambda_handler
       MemorySize: 256
       Role:
-        Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
-      Runtime: python2.7
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
       Timeout: 60
   processTranscriptionJob:
     Type: AWS::Serverless::Function
@@ -282,10 +264,8 @@ Resources:
       Handler: process_transcription.lambda_handler
       MemorySize: 256
       Role:
-        Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
-      Runtime: python2.7
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
       Timeout: 60
   indexCTRInElasticSearch:
     Type: AWS::Serverless::Function
@@ -297,9 +277,7 @@ Resources:
       Environment:
         Variables:
           ES_DOMAIN:
-            Fn::GetAtt:
-              - CallsElasticSearch
-              - DomainEndpoint
+            !GetAtt CallsElasticSearch.DomainEndpoint
           ES_EPISODE_INDEX: 'ctr'
       Events:
         Stream:
@@ -311,10 +289,8 @@ Resources:
       Handler: upload_to_elasticsearch.lambda_handler
       MemorySize: 256
       Role:
-        Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
-      Runtime: python2.7
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
       Timeout: 60
   kickOffStepFunctionsFromS3Event:
     Type: AWS::Serverless::Function
@@ -341,10 +317,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       MemorySize: 256
       Role:
-        Fn::GetAtt:
-          - LambdaServiceRole
-          - Arn
-      Runtime: python2.7
+        !GetAtt LambdaServiceRole.Arn
+      Runtime: python3.7
       Timeout: 60
   # End Serverless Functions
   # Step Functions
@@ -368,18 +342,14 @@ Resources:
           \ \"checkAction\"\n    },\n    \"Complete\": { \n      \"Type\": \"Pass\"\
           ,\n      \"End\": true\n    }\n  }\n}"
       RoleArn:
-        Fn::GetAtt:
-          - StatesExecutionRole
-          - Arn
+        !GetAtt StatesExecutionRole.Arn
   processAudioFile:
     Type: AWS::StepFunctions::StateMachine
     Properties:
       DefinitionString:
         Fn::Sub: "{\n  \"StartAt\": \"Start Amazon Transcribe\",\n  \"States\": {\n    \"Start Amazon Transcribe\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"${startTranscriptionJob.Arn}\",\n      \"InputPath\": \"$\",\n      \"ResultPath\": \"$.transcribe\",\n      \"Next\": \"Check Transcribe Status\",\n      \"Retry\": [\n        {\n          \"ErrorEquals\": [ \"ThrottlingException\" ],\n          \"IntervalSeconds\": 120,\n          \"BackoffRate\": 1,\n          \"MaxAttempts\": 1000\n        },\n        {\n          \"ErrorEquals\": [ \"States.ALL\" ],\n          \"IntervalSeconds\": 60,\n          \"BackoffRate\": 2,\n          \"MaxAttempts\": 3\n        }\n      ]\n    },\n    \"Check Transcribe Status\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"${checkTranscriptionJob.Arn}\",\n      \"InputPath\": \"$.transcribe\",\n      \"ResultPath\": \"$.transcribeStatus\",\n      \"Next\": \"Is Transcribe Completed?\"\n    },\n    \"Wait for Transcribe Completion\": {\n      \"Type\": \"Wait\",\n      \"Seconds\": 60,\n      \"Next\": \"Check Transcribe Status\"\n    },\n    \"Is Transcribe Completed?\": {\n      \"Type\": \"Choice\",\n      \"Choices\": [\n        {\n          \"Variable\": \"$.transcribeStatus.status\",\n          \"StringEquals\": \"COMPLETED\",\n          \"Next\": \"Process Transcription\"\n        }\n      ],\n      \"Default\": \"Wait for Transcribe Completion\"\n    },\n    \"Process Transcription\": {\n      \"Type\": \"Parallel\",\n      \"Branches\": [\n        {\n          \"StartAt\": \"Generate Full Text Transcript\",\n          \"States\": {\n            \"Generate Full Text Transcript\": {\n              \"Type\": \"Task\",\n              \"Resource\": \"${processTranscriptionJob.Arn}\",\n              \"End\": true\n            }\n          }\n        }\n      ],\n      \"ResultPath\": \"$.processedTranscription\",\n      \"Next\": \"Upload To Elasticsearch\"\n    },\n    \"Upload To Elasticsearch\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"${indexIntoElasticsearch.Arn}\",\n      \"InputPath\": \"$\",\n      \"ResultPath\": \"$.elasticsearchResult\",\n      \"Next\": \"Complete\"\n    },\n    \"Complete\": {\n      \"Type\": \"Succeed\"\n    }\n  }\n}"
       RoleArn:
-        Fn::GetAtt:
-          - StatesExecutionRole
-          - Arn
+        !GetAtt StatesExecutionRole.Arn
   # End Step Functions
   # Other Resources
   ESCognito:
@@ -387,17 +357,15 @@ Resources:
     Properties:
       IdentityPoolId: !GetAtt CognitoStack.Outputs.CognitoIdentityPool
       ServiceToken:
-        Fn::GetAtt:
-          - elasticsearchCognito
-          - Arn
+        !GetAtt elasticsearchCognito.Arn
       StackName:
-        Ref: AWS::StackName
+        !Ref AWS::StackName
       UserPoolId: !GetAtt CognitoStack.Outputs.CognitoUserPool
       esCluster:
-        Ref: CallsElasticSearch
+        !Ref CallsElasticSearch
       esRoleArn: !GetAtt CognitoStack.Outputs.CognitoAccessForAmazonESARN
       kibanaUser:
-        Ref: kibanaUser
+        !Ref kibanaUser
   CTRStream:
     Type: AWS::Kinesis::Stream
     Properties:
@@ -406,7 +374,7 @@ Resources:
   CallsElasticSearch:
     Type: AWS::Elasticsearch::Domain
     Properties:
-      ElasticsearchVersion: '6.3'
+      ElasticsearchVersion: '7.1'
       ElasticsearchClusterConfig:
         InstanceCount: 2
         InstanceType: 'm4.large.elasticsearch'
@@ -428,6 +396,7 @@ Resources:
       ShardCount: 2
     Type: 'AWS::Kinesis::Stream'
   AmznConnectAgentDeliveryStream:
+    Type: AWS::KinesisFirehose::DeliveryStream
     Properties:
       DeliveryStreamType: KinesisStreamAsSource
       ElasticsearchDestinationConfiguration:
@@ -435,44 +404,32 @@ Resources:
           IntervalInSeconds: 60
           SizeInMBs: 1
         DomainARN:
-          'Fn::GetAtt':
-            - CallsElasticSearch
-            - DomainArn
+          !GetAtt CallsElasticSearch.DomainArn
         IndexName: agent-logs
         IndexRotationPeriod: OneHour
         RetryOptions:
           DurationInSeconds: 100
         RoleARN:
-          'Fn::GetAtt':
-            - FirehoseRole
-            - Arn
+          !GetAtt FirehoseRole.Arn
         S3BackupMode: AllDocuments
         S3Configuration:
           BucketARN:
-            'Fn::GetAtt':
-              - AmznConnectOutputBucket
-              - Arn
+            !GetAtt AmznConnectOutputBucket.Arn
           BufferingHints:
             IntervalInSeconds: 60
             SizeInMBs: 1
           CompressionFormat: GZIP
           Prefix: agent-firehose-output/
           RoleARN:
-            'Fn::GetAtt':
-              - FirehoseRole
-              - Arn
-        TypeName: AmznConnect
+            !GetAtt FirehoseRole.Arn
+        TypeName: ''
       KinesisStreamSourceConfiguration:
         KinesisStreamARN:
-          'Fn::GetAtt':
-            - AgentKinesisStream
-            - Arn
+          !GetAtt AgentKinesisStream.Arn
         RoleARN:
-          'Fn::GetAtt':
-            - FirehoseRole
-            - Arn
-    Type: 'AWS::KinesisFirehose::DeliveryStream'
+          !GetAtt FirehoseRole.Arn
   AmznConnectOutputBucket:
+    Type: 'AWS::S3::Bucket'
     Properties:
       LifecycleConfiguration:
         Rules:
@@ -482,7 +439,6 @@ Resources:
             Transitions:
               - StorageClass: Glacier
                 TransitionInDays: 30
-    Type: 'AWS::S3::Bucket'
   ContactFlowLogFilter:
     DependsOn: CwLogsToElasticsearchLambdaInvoke
     Properties:
@@ -515,7 +471,7 @@ Resources:
         'Fn::GetAtt':
           - CwLogsToElasticsearchLambdaRole
           - Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 300
     Type: 'AWS::Serverless::Function'
   CwLogsToElasticsearchLambdaInvoke:
@@ -691,38 +647,25 @@ Outputs:
   KibanaPassword:
     Description: The password for the kibana user
     Value:
-      Fn::GetAtt:
-        - ESCognito
-        - KibanaPassword
+      !GetAtt ESCognito.KibanaPassword
 
   KibanaUser:
     Description: The username for the kibana user
     Value:
-      Fn::GetAtt:
-        - ESCognito
-        - KibanaUser
+      !GetAtt ESCognito.KibanaUser
 
   AgentOutputLocation:
     Description: S3 agent logs location.
     Export:
       Name:
-        'Fn::Sub': '${AWS::StackName}-AgentLogsS3Uri'
+        !Sub '${AWS::StackName}-AgentLogsS3Uri'
     Value:
-      'Fn::Join':
-        - ''
-        - - 's3://'
-          - Ref: AmznConnectOutputBucket
-          - /agent-firehose-output/
+      !Sub 's3://${AmznConnectOutputBucket}/agent-firehose-output/'
 
   ContactFlowLogsOutputLocation:
     Description: S3 contact flow logs location.
     Export:
       Name:
-        'Fn::Sub': '${AWS::StackName}-ContactFlowS3Uri'
+        !Sub '${AWS::StackName}-ContactFlowS3Uri'
     Value:
-      'Fn::Join':
-        - ''
-        - - 's3://'
-          - Ref: AmznConnectOutputBucket
-          - /contactflowlogs-output/
-Transform: AWS::Serverless-2016-10-31
+      !Sub 's3://${AmznConnectOutputBucket}/contactflowlogs-output/'

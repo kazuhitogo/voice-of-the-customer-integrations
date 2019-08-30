@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import boto3
 import certifi
 import json
@@ -16,7 +14,7 @@ logging.basicConfig()
 logger = logging.getLogger()
 
 # Parameters
-REGION = os.getenv('AWS_REGION', default='us-east-1')
+REGION = os.getenv('AWS_REGION')
 esendpoint = os.environ['ES_DOMAIN']
 FULL_EPISODE_INDEX = os.getenv('ES_EPISODE_INDEX', default='ctr')
 FULL_EPISODE_DOCTYPE = os.getenv('FULL_EPISODE_DOCTYPE', default='doc')
@@ -53,12 +51,11 @@ def lambda_handler(event, context):
     for record in event['Records']:
         # Kinesis data is base64 encoded so decode here
         payload = base64.b64decode(record['kinesis']['data'])
-        print("Decoded payload: " + payload)
+        logger.info(f"Decoded payload: {payload}")
         index_ctr(es, json.loads(payload))
-    return 'Successfully processed {} records.'.format(len(event['Records']))
+    return f"Successfully processed {len(event['Records'])} records."
 
 def index_ctr(es, payload):
-    
     contact_id = payload['ContactId']
 
     updateDoc = {

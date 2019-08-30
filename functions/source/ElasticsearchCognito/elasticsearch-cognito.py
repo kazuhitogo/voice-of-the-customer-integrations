@@ -1,8 +1,8 @@
 import boto3
 import random
 import string
-import httplib
-import urlparse
+import http.client
+from urllib.parse import urlparse
 import json
 import os
 
@@ -27,7 +27,7 @@ def lambda_handler(event, context):
     try:
         return process_cfn(event, context)
     except Exception as e:
-        print("EXCEPTION", e)
+        print(("EXCEPTION", e))
         print(e)
         send_response(event, {
             'StackId': event['StackId'],
@@ -36,7 +36,7 @@ def lambda_handler(event, context):
             }, "FAILED")
 
 def process_cfn(event, context):
-    print("Received event: " + json.dumps(event, indent=2))
+    print(("Received event: " + json.dumps(event, indent=2)))
     
     stepFunctionArn = os.environ['STEP_FUNCTION_ARN']
 
@@ -45,10 +45,7 @@ def process_cfn(event, context):
     identityPoolId = event['ResourceProperties']['IdentityPoolId']
     esRoleArn = event['ResourceProperties']['esRoleArn']
 
-    if 'kibanaUser' in event['ResourceProperties'] and event['ResourceProperties']['kibanaUser'] != '':
-        kibanaUser = event['ResourceProperties']['kibanaUser']
-    else:
-        kibanaUser = 'kibana'
+    kibanaUser = event.get('ResourceProperties', {}).get('kibanaUser', 'kibana')
 
     if 'kibanaEmail' in event['ResourceProperties'] and event['ResourceProperties']['kibanaEmail'] != '':
         kibanaEmail = event['ResourceProperties']['kibanaEmail']
@@ -56,8 +53,6 @@ def process_cfn(event, context):
         kibanaEmail = id_generator(6) + '@example.com'
 
     kibanaPassword = pwd_generator()
-
-    boto3.session.Session()
 
     response = {
         'StackId': event['StackId'],
@@ -84,12 +79,12 @@ def process_cfn(event, context):
         
 
         send_response(event, response, status="SUCCESS", reason="User Pool Domain Deleted")
-        return 
+        return
 
 
     add_user(userPoolId, kibanaUser, kibanaEmail, kibanaPassword)
 
-    print("ES Domain : " + esDomainName + "\tUserPool:" + userPoolId)
+    print(("ES Domain : " + esDomainName + "\tUserPool:" + userPoolId))
 
     try:
         cognito_idp_client.create_user_pool_domain(
@@ -155,18 +150,10 @@ def send_response(request, response, status=None, reason=None):
     if not 'PhysicalResourceId' in response or response['PhysicalResourceId']:
         response['PhysicalResourceId'] = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
 
-
-    if request['ResponseURL'] == '':
-            s3params = {"Bucket": 'gillemi-gillemi', "Key": 'result.json'}
-            request['ResponseURL'] = s3_client.generate_presigned_url('put_object', s3params)
-            print('The debug URL is', request['ResponseURL'])
-
     if 'ResponseURL' in request and request['ResponseURL']:
-        url = urlparse.urlparse(request['ResponseURL'])
+        url = urlparse(request['ResponseURL'])
         body = json.dumps(response)
-        print ('body', url, body)
-        https = httplib.HTTPSConnection(url.hostname)
+        https = http.client.HTTPSConnection(url.hostname)
         https.request('PUT', url.path+'?'+url.query, body)
 
     return response
-

@@ -14,6 +14,7 @@ Resources:
               Federated: cognito-identity.amazonaws.com
         Version: "2012-10-17"
   CognitoUnauthRole:
+    Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Statement:
@@ -22,7 +23,7 @@ Resources:
             Principal:
               Federated: cognito-identity.amazonaws.com
         Version: "2012-10-17"
-    Type: AWS::IAM::Role
+
   CognitoAccessForAmazonES:
     Type: AWS::IAM::Role
     Properties:
@@ -39,14 +40,10 @@ Resources:
   CognitoAccessForAmazonESPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      Description: elasticsearch and rekognition cognito role
+      Description: elasticsearch cognito role
       PolicyDocument:
         Statement:
           - Action:
-              - iam:GetRole
-              - iam:PassRole
-              - iam:CreateRole
-              - iam:AttachRolePolicy
               - ec2:DescribeVpcs
               - cognito-identity:ListIdentityPools
               - cognito-identity:DescribeIdentityPool
@@ -56,20 +53,29 @@ Resources:
               - cognito-idp:DeleteUserPoolDomain
             Effect: Allow
             Resource: "*"
+          - Action:
+              - iam:GetRole
+              - iam:PassRole
+              # - iam:CreateRole
+              # - iam:AttachRolePolicy
+            Effect: Allow
+            Resource:
+              - !GetAtt CognitoUnauthRole.Arn
+              - !GetAtt CognitoAuthRole.Arn
         Version: "2012-10-17"
       Roles:
         - Ref: CognitoAccessForAmazonES
   CognitoAuthKibanaPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      Description: elasticsearch and rekognition cognito role
+      Description: elasticsearch cognito role
       PolicyDocument:
         Statement:
           - Action:
               - es:ESHttp*
             Effect: Allow
             Resource:
-              Fn::Sub: arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
+              !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
         Version: "2012-10-17"
       Roles:
         - Ref: CognitoAuthRole
@@ -81,31 +87,27 @@ Resources:
         Ref: CognitoIdentityPool
       Roles:
         authenticated:
-          Fn::GetAtt:
-            - CognitoAuthRole
-            - Arn
+          !GetAtt CognitoAuthRole.Arn
         unauthenticated:
-          Fn::GetAtt:
-            - CognitoUnauthRole
-            - Arn
+          !GetAtt CognitoUnauthRole.Arn
   CognitoApplicationClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
       ClientName:
-        Fn::Sub: ${AWS::StackName}-appclient
+        !Sub ${AWS::StackName}-appclient
       GenerateSecret: false
       RefreshTokenValidity: 2
       UserPoolId:
-        Ref: CognitoUserPool
+        !Ref CognitoUserPool
   CognitoIdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
       AllowUnauthenticatedIdentities: true
       CognitoIdentityProviders:
         - ClientId:
-            Ref: CognitoApplicationClient
+            !Ref CognitoApplicationClient
           ProviderName:
-            Fn::Sub: cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+            !Sub cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
           ServerSideTokenCheck: false
   CognitoUserPool:
     Type: AWS::Cognito::UserPool
@@ -135,7 +137,7 @@ Resources:
           RequireSymbols: true
           RequireUppercase: true
       UserPoolName:
-        Fn::Sub: ${AWS::StackName}-users
+        !Sub ${AWS::StackName}-users
 #****************************************
 Outputs:
   # IAM Resources

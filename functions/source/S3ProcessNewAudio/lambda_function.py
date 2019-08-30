@@ -1,7 +1,5 @@
-from __future__ import print_function
-
 import json
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import boto3
 import os
 
@@ -13,11 +11,9 @@ stepfunctions = boto3.client('stepfunctions')
 stepfunctionsarn = os.getenv('STEP_FUNCTIONS_ARN')
 
 def lambda_handler(event, context):
-    #print("Received event: " + json.dumps(event, indent=2))
-
     # Get the object from the event and show its content type
     bucket = event['Records'][0]['s3']['bucket']['name']
-    key = urllib.unquote_plus(event['Records'][0]['s3']['object']['key'].encode('utf8'))
+    key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'])
     try:
         response = stepfunctions.start_execution(
                 stateMachineArn=stepfunctionsarn,
@@ -28,7 +24,7 @@ def lambda_handler(event, context):
                     "key": key
                      })))
         
-        print('kicked off state machine for ' + bucket + '/' + key)
+        print(f'kicked off state machine for {bucket}/{key}')
         
         return 'true'
     except Exception as e:

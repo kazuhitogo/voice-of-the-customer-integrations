@@ -1,16 +1,11 @@
-from __future__ import print_function  # Python 2/3 compatibility
-
 import boto3
 import os
 import logging
 import time
 import json
-from urllib2 import urlopen
+from urllib.request import urlopen
 import string
 from common_lib import find_duplicate_person, id_generator
-
-# from requests_aws_sign import AWSV4Sign
-# from elasticsearch import Elasticsearch, RequestsHttpConnection
 
 # Log level
 logging.basicConfig()
@@ -21,25 +16,20 @@ else:
     logger.setLevel(logging.INFO)
 
 # Parameters
-REGION = os.getenv('AWS_REGION', default='us-east-1')
+REGION = os.getenv('AWS_REGION')
 # Check valid languages here: https://docs.aws.amazon.com/comprehend/latest/dg/API_BatchDetectEntities.html#comprehend-BatchDetectEntities-request-LanguageCode
-LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', default = "en")
+LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', default="en")
 
 comprehend = boto3.client(service_name='comprehend', region_name=REGION)
 
 commonDict = {'i': 'I'}
 
-ENTITY_CONFIDENCE_THRESHOLD = 0.5
+ENTITY_CONFIDENCE_THRESHOLD = float(os.getenv("ENTITY_CONFIDENCE_THRESHOLD", .5))
 
 s3_client = boto3.client("s3")
 
 # Pull the bucket name from the environment variable set in the cloudformation stack
 bucket = os.environ['BUCKET_NAME']
-print("bucket: " + bucket)
-
-
-class InvalidInputError(ValueError):
-    pass
 
 
 def process_transcript(transcription_url):
@@ -370,7 +360,6 @@ def parse_detected_entities_response(detected_entities_response, entities):
 def lambda_handler(event, context):
     """
         AWS Lambda handler
-
     """
     logger.info('Received event')
     logger.info(json.dumps(event))

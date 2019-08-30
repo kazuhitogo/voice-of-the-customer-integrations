@@ -1,8 +1,8 @@
 import boto3
 import random
 import string
-import httplib
-import urlparse
+import http.client
+import urllib.parse
 import json
 
 es_client = boto3.client('es')
@@ -18,23 +18,17 @@ def send_response(request, response, status=None, reason=None):
     if not 'PhysicalResourceId' in response or response['PhysicalResourceId']:
         response['PhysicalResourceId'] = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
 
-
-    if request['ResponseURL'] == '':
-        s3params = {"Bucket": 'gillemi-gillemi', "Key": 'result.json'}
-        request['ResponseURL'] = s3_client.generate_presigned_url('put_object', s3params)
-        print('The debug URL is', request['ResponseURL'])
-
     if 'ResponseURL' in request and request['ResponseURL']:
-        url = urlparse.urlparse(request['ResponseURL'])
+        url = urllib.parse.urlparse(request['ResponseURL'])
         body = json.dumps(response)
-        print ('body', url, body)
-        https = httplib.HTTPSConnection(url.hostname)
+        print(('body', url, body))
+        https = http.client.HTTPSConnection(url.hostname)
         https.request('PUT', url.path+'?'+url.query, body)
 
     return response
 
 def check_status(event, context):
-    print("Received event: " + json.dumps(event, indent=2))
+    print(("Received event: " + json.dumps(event, indent=2)))
 
     if "IsFail" in event["event"]:
         send_response(event["event"], {}, status="FAILED", reason="Forced Error")
@@ -55,7 +49,7 @@ def check_status(event, context):
             if event["event"]["ResponseURL"] == '':
                 s3params = {"Bucket": 'gillemi-gillemi', "Key": 'result.json'}
                 event["event"]["ResponseURL"] = s3_client.generate_presigned_url('put_object', s3params)
-                print('The URL is', event["event"]["ResponseURL"])
+                print(('The URL is', event["event"]["ResponseURL"]))
 
             send_response(event["event"], event["response"])
 

@@ -1,14 +1,16 @@
 # quickstart-connect-voci
 
 This solution is based off of two initial solutions:
+
 1) A re:Invent demo that indexed Audio and the CTR into Elastic Search: https://s3.amazonaws.com/serverless-analytics/reinvent-2018-comprehend-transcribe-connect/index.html
 2) A blog post that indexed Agent Events and CWL into Elastic Search: https://aws.amazon.com/blogs/contact-center/use-amazon-connect-data-in-real-time-with-elasticsearch-and-kibana/
 
 ## Directions
 
-- Create an S3 bucket with a top level folder and copy all files into it from GitHub (https://github.com/aws-quickstart/quickstart-connect-voci)
-- Create a stack with the template url set to the s3 bucket you just created under /templates/quickstart-connect-voci-base-pipeline.yaml
-    - The QuickSight S3 bucket and folder should be set to the one that you created in step one
+- Create an S3 bucket with a top level folder and copy all files into it from [GitHub](https://github.com/aws-quickstart/quickstart-connect-voci)
+`aws s3 sync . s3://my-s3-bucket-name/`
+- Create a stack with the template url set to the s3 bucket you just created under `/templates/quickstart-connect-voci-base-pipeline.yaml`
+    - The Quick Start S3 bucket and folder should be set to the one that you created in step one
     - The S3 audio bucket will be a new bucket, so add a globally unique name
     - The log group is the log group set for the Amazon Connect instance you want to use. You can see the value in the Amazon Connect AWS Console when viewing the instance details under Contact Flow.
 - Once the stacks deploy, update your Amazon Connect instance to use the new resources created

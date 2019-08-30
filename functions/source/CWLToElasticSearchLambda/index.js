@@ -207,7 +207,7 @@ function buildSource(message, extractedFields) {
         return source;
     }
 
-    jsonSubString = extractJson(message);
+    var jsonSubString = extractJson(message);
     if (jsonSubString !== null) {
         return JSON.parse(jsonSubString);
     }
@@ -272,10 +272,10 @@ function post(body, callback) {
 }
 
 function buildRequest(endpoint, body) {
-    var endpointParts = endpoint.match(/^([^\.]+)\.?([^\.]*)\.?([^\.]*)\.amazonaws\.com$/);
+    var endpointParts = endpoint.match(/^([^.]+)\.?([^.]*)\.?([^.]*)\.amazonaws\.com$/);
     var region = endpointParts[2];
     var service = endpointParts[3];
-    var datetime = (new Date()).toISOString().replace(/[:\-]|\.\d{3}/g, '');
+    var datetime = (new Date()).toISOString().replace(/[:-]|\.\d{3}/g, '');
     var date = datetime.substr(0, 8);
     var kDate = hmac('AWS4' + process.env.AWS_SECRET_ACCESS_KEY, date);
     var kRegion = hmac(kDate, region);
