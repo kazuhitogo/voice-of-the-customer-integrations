@@ -205,7 +205,7 @@ Resources:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub '${QSS3KeyPrefix}functions/packages/IndexS3TranscriptionDataIntoES/lambda.zip'
-      Description: 'Lambda function that indexes the Transcription and NLP entties/keyphrases'
+      Description: 'Lambda function that indexes the Transcription and NLP entities/keyphrases'
       Environment:
         Variables:
           ES_DOMAIN:
@@ -217,13 +217,6 @@ Resources:
         !GetAtt LambdaServiceRole.Arn
       Runtime: python3.7
       Timeout: 60
-      Events:
-        Stream:
-          Type: Kinesis
-          Properties:
-            Stream: !GetAtt CTRStream.Arn
-            BatchSize: 100
-            StartingPosition: LATEST
   startTranscriptionJob:
     Type: AWS::Serverless::Function
     Properties:
