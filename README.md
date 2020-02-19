@@ -18,8 +18,7 @@ Launch an Amazon Connect instance, provision a phone number, and create a contac
 
 ## Directions
 
-### Steps 1 and 2 only needed until quickstart is published
-
+1. Build each lambda package by zipping the directory: `./build.sh`
 1. Create an S3 bucket with a top level folder and copy all files into it from [GitHub](https://github.com/aws-quickstart/quickstart-connect-voci)
 
     ```bash
