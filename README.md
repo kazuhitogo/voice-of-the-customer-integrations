@@ -1,6 +1,6 @@
-# quickstart-connect-voci
+# Voice of the customer integrations
 
-This quickstart automatically provisions an [Amazon Elasticsearch](https://aws.amazon.com/elasticsearch-service/) cluster to ingest [Amazon Connect](https://aws.amazon.com/connect/) CTRs and uses [Amazon Transcribe](https://aws.amazon.com/transcribe/) to transcribe recorded calls then analyzes the resulting transcription with [Amazon Comprehend](https://aws.amazon.com/comprehend/) powered sentiment analysis and key phrase extraction.
+This project automatically provisions an [Amazon Elasticsearch](https://aws.amazon.com/elasticsearch-service/) cluster to ingest [Amazon Connect](https://aws.amazon.com/connect/) CTRs and uses [Amazon Transcribe](https://aws.amazon.com/transcribe/) to transcribe recorded calls then analyzes the resulting transcription with [Amazon Comprehend](https://aws.amazon.com/comprehend/) powered sentiment analysis and key phrase extraction.
 
 ![example dashboard](imgs/connect_dashboard_1.png)
 ![example dashboard](imgs/connect_dashboard_2.png)
@@ -49,3 +49,7 @@ This solution is based off of two initial solutions:
 
 1) A re:Invent demo that indexed Audio and the CTR into Elastic Search: https://s3.amazonaws.com/serverless-analytics/reinvent-2018-comprehend-transcribe-connect/index.html
 2) A blog post that indexed Agent Events and CWL into Elastic Search: https://aws.amazon.com/blogs/contact-center/use-amazon-connect-data-in-real-time-with-elasticsearch-and-kibana/
+
+
+## License
+This library is licensed under the MIT-0 License. See the LICENSE file.
