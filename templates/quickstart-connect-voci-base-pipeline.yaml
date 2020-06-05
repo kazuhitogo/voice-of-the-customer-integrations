@@ -83,15 +83,15 @@ Resources:
         QSS3KeyPrefix: !Ref 'QSS3KeyPrefix'
         LambdaZipObjects: !Join
           - ','
-          - - functions/packages/CheckElasticsearchStatus/lambda.zip
-            - functions/packages/CheckTranscriptionJob/lambda.zip
-            - functions/packages/ElasticsearchCognito/lambda.zip
-            - functions/packages/IndexCTRInElasticSearch/lambda.zip
-            - functions/packages/IndexS3TranscriptionDataIntoES/lambda.zip
-            - functions/packages/ProcessTranscription/lambda.zip
-            - functions/packages/S3ProcessNewAudio/lambda.zip
-            - functions/packages/StartTranscriptionJob/lambda.zip
-            - functions/packages/CWLToElasticSearchLambda/lambda.zip
+          - - functions/packages/CheckElasticsearchStatus.zip
+            - functions/packages/CheckTranscriptionJob.zip
+            - functions/packages/ElasticsearchCognito.zip
+            - functions/packages/IndexCTRInElasticSearch.zip
+            - functions/packages/IndexS3TranscriptionDataIntoES.zip
+            - functions/packages/ProcessTranscription.zip
+            - functions/packages/S3ProcessNewAudio.zip
+            - functions/packages/StartTranscriptionJob.zip
+            - functions/packages/CWLToElasticSearchLambda.zip
     # End Lambda Portability stack
   #**********************************
   CognitoStack:
@@ -174,7 +174,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/ElasticsearchCognito/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/ElasticsearchCognito.zip'
       Description: ''
       Environment:
         Variables:
@@ -191,7 +191,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/CheckElasticsearchStatus/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/CheckElasticsearchStatus.zip'
       Description: ''
       Handler: elasticsearch-cognito.check_status
       MemorySize: 128
@@ -204,7 +204,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/IndexS3TranscriptionDataIntoES/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/IndexS3TranscriptionDataIntoES.zip'
       Description: 'Lambda function that indexes the Transcription and NLP entities/keyphrases'
       Environment:
         Variables:
@@ -222,7 +222,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/StartTranscriptionJob/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/StartTranscriptionJob.zip'
       Description: 'Lambda function that starts the Transcription job'
       Handler: start_transcription.lambda_handler
       MemorySize: 256
@@ -235,7 +235,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/CheckTranscriptionJob/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/CheckTranscriptionJob.zip'
       Description: 'Lambda function that checks the status of the Transcription job'
       Handler: check_transcribe.lambda_handler
       MemorySize: 256
@@ -248,7 +248,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/ProcessTranscription/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/ProcessTranscription.zip'
       Description: 'Lambda function that processes the Transcription job'
       Environment:
         Variables:
@@ -265,7 +265,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/IndexCTRInElasticSearch/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/IndexCTRInElasticSearch.zip'
       Description: 'Lambda function that indexes the CTR into Elastic Search'
       Environment:
         Variables:
@@ -290,7 +290,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/S3ProcessNewAudio/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/S3ProcessNewAudio.zip'
       Description: 'Lambda function that starts the step function'
       Environment:
         Variables:
@@ -447,7 +447,7 @@ Resources:
     Properties:
       CodeUri:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
-        Key: !Sub '${QSS3KeyPrefix}functions/packages/CWLToElasticSearchLambda/lambda.zip'
+        Key: !Sub '${QSS3KeyPrefix}functions/packages/CWLToElasticSearchLambda.zip'
       Description: Contact flow Cloudwatch logs to Amazon Elasticsearch and S3
       Environment:
         Variables:
