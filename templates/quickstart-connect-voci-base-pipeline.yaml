@@ -211,6 +211,7 @@ Resources:
           ES_DOMAIN:
             !GetAtt CallsElasticSearch.DomainEndpoint
           ES_EPISODE_INDEX: 'call-transcript'
+          ES_SENTENCE_INDEX: 'call-transcript-detail'
       Handler: upload_to_elasticsearch.lambda_handler
       MemorySize: 256
       Role:
@@ -237,6 +238,12 @@ Resources:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub '${QSS3KeyPrefix}functions/packages/CheckTranscriptionJob.zip'
       Description: 'Lambda function that checks the status of the Transcription job'
+      Environment:
+        Variables:
+          ES_DOMAIN:
+            !GetAtt CallsElasticSearch.DomainEndpoint
+          FULL_EPISODE_INDEX: 'ctr'
+          FULL_EPISODE_DOCTYPE: 'doc'
       Handler: check_transcribe.lambda_handler
       MemorySize: 256
       Role:
@@ -254,6 +261,7 @@ Resources:
         Variables:
           BUCKET_NAME:
             Ref: AudioTranscriptionBucketName
+          LANGUAGE_CODE: 'ja'
       Handler: process_transcription.lambda_handler
       MemorySize: 256
       Role:

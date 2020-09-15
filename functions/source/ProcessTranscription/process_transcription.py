@@ -18,13 +18,11 @@ else:
 # Parameters
 REGION = os.getenv('AWS_REGION')
 # Check valid languages here: https://docs.aws.amazon.com/comprehend/latest/dg/API_BatchDetectEntities.html#comprehend-BatchDetectEntities-request-LanguageCode
-LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', default="en")
+LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', default="ja")
 
 comprehend = boto3.client(service_name='comprehend', region_name=REGION)
 
 commonDict = {'i': 'I'}
-
-ENTITY_CONFIDENCE_THRESHOLD = float(os.getenv("ENTITY_CONFIDENCE_THRESHOLD", .5))
 
 s3_client = boto3.client("s3")
 
@@ -32,330 +30,199 @@ s3_client = boto3.client("s3")
 bucket = os.environ['BUCKET_NAME']
 
 
-def process_transcript(transcription_url):
+def process_transcript(transcription_url,agent_name='',agent_arn=''):
     custom_vocabs = None
 
     response = urlopen(transcription_url)
     output = response.read()
     json_data = json.loads(output)
+    logger.info(json_data)
 
-    logger.debug(json.dumps(json_data, indent=4))
-    results = json_data['results']
-    # free up memory
-    del json_data
-
-    comprehend_chunks, paragraphs = chunk_up_transcript(custom_vocabs, results)
-
-    key_phrases = ''
-    entities_as_list = {}
-
-    if comprehend_chunks is not None and len(comprehend_chunks) > 0:
-        start = time.time()
-        detected_entities_response = comprehend.batch_detect_entities(TextList=comprehend_chunks, LanguageCode=LANGUAGE_CODE)
-        round_trip = time.time() - start
-        logger.info('End of batch_detect_entities. Took time {:10.4f}\n'.format(round_trip))
-
-        entities = parse_detected_entities_response(detected_entities_response, {})
-
-        for entity_type in entities:
-            entities_as_list[entity_type] = list(entities[entity_type])
-
-        clean_up_entity_results(entities_as_list)
-        print(json.dumps(entities_as_list, indent=4))
-
-        start = time.time()
-        detected_phrase_response = comprehend.batch_detect_key_phrases(TextList=comprehend_chunks, LanguageCode=LANGUAGE_CODE)
-        round_trip = time.time() - start
-        logger.info('End of batch_detect_key_phrases. Took time {:10.4f}\n'.format(round_trip))
-
-        key_phrases = parse_detected_key_phrases_response(detected_phrase_response)
-        logger.debug(json.dumps(key_phrases, indent=4))
-
-    agentTranscript = ''
-
-    #Agent is channel 1 now...
-    for item in results['channel_labels']['channels'][1]['items']:
-        if item['type'] == 'punctuation':
-            filler = ''
+    # customer
+    customer_transcriptions = []
+    # センテンスを作成する
+    # 1 秒未満に続いた単語は同じセンテンスとし、1 秒以上空いた音声は別センテンスとする
+    for d in json_data['results']['channel_labels']['channels'][0]['items']:
+        if 'start_time' not in d:
+            pass
+        elif customer_transcriptions == [] or float(d['start_time']) - float(customer_transcriptions[-1]['end_time']) >= 1:
+            customer_transcriptions.append({
+                'job_name':json_data['jobName'],
+                'person':'customer',
+                'start_time':d['start_time'],
+                'end_time':d['end_time'],
+                'content':d['alternatives'][0]['content'],
+                'detail_flag':True
+            })
+        elif float(d['start_time']) - float(customer_transcriptions[-1]['end_time']) < 1: # 1秒未満
+            customer_transcriptions[-1]['end_time'] = d['end_time']
+            customer_transcriptions[-1]['content'] += d['alternatives'][0]['content']
+    
+    for customer_transcription in customer_transcriptions:
+        customer_transcription['start_time'] = int(float(customer_transcription['start_time'])*1000)
+        customer_transcription['end_time'] = int(float(customer_transcription['end_time'])*1000)
+    for i,customer_transcription in enumerate(customer_transcriptions):
+        res = comprehend.detect_sentiment(Text=customer_transcription['content'],LanguageCode=LANGUAGE_CODE)
+        customer_transcriptions[i]['Positive'] = res['SentimentScore']['Positive']
+        customer_transcriptions[i]['Negative'] = res['SentimentScore']['Negative']
+        customer_transcriptions[i]['Neutral'] = res['SentimentScore']['Neutral']
+        customer_transcriptions[i]['Mixed'] = res['SentimentScore']['Mixed']
+        res = comprehend.detect_key_phrases(Text=customer_transcription['content'],LanguageCode=LANGUAGE_CODE)
+        customer_transcriptions[i]['KeyPhrases'] = []
+        if res['KeyPhrases'] == []:
+            pass
         else:
-            filler = ' '
-        agentTranscript += filler + item['alternatives'][0]['content']
-
-    customerTranscript = ''
-
-    # Customer is channel 0 now...
-    for item in results['channel_labels']['channels'][0]['items']:
-        if item['type'] == 'punctuation':
-            filler = ''
+            for r in res['KeyPhrases']:
+                customer_transcriptions[i]['KeyPhrases'].append(r['Text'])
+        customer_transcriptions[i]['Entities'] = []
+        res = comprehend.detect_entities(Text=customer_transcription['content'],LanguageCode=LANGUAGE_CODE)
+        if res['Entities']==[]:
+            pass
         else:
-            filler = ' '
-        customerTranscript += filler + item['alternatives'][0]['content']
-
-    agent = [agentTranscript]
-    customer = [customerTranscript]
-    agent_entities_as_list = {}
-    detected_agent_phrase_response = ''
-    agent_key_phrases = ''
-    agent_sentiment = ''
-
-    if agent[0] != '' :
-        detected_agent_entities_response = comprehend.batch_detect_entities(TextList=agent[0:24], LanguageCode=LANGUAGE_CODE)
-        round_trip = time.time() - start
-        logger.info('End of batch_detect_entities. Took time {:10.4f}\n'.format(round_trip))
-
-        agent_entities = parse_detected_entities_response(detected_agent_entities_response, {})
-
-        for entity_type in agent_entities:
-            agent_entities_as_list[entity_type] = list(agent_entities[entity_type])
-
-        clean_up_entity_results(agent_entities_as_list)
-        print(json.dumps(agent_entities_as_list, indent=4))
-
-        start = time.time()
-        detected_agent_phrase_response = comprehend.batch_detect_key_phrases(TextList=agent[0:24], LanguageCode=LANGUAGE_CODE)
-        round_trip = time.time() - start
-        logger.info('End of batch_detect_key_phrases. Took time {:10.4f}\n'.format(round_trip))
-
-        agent_key_phrases = parse_detected_key_phrases_response(detected_agent_phrase_response)
-        logger.debug(json.dumps(key_phrases, indent=4))
-
-        agent_sentiment = comprehend.detect_sentiment(Text=agentTranscript[0:5000], LanguageCode=LANGUAGE_CODE)['Sentiment']
-
-        print('agent sentiment ' + agent_sentiment)
-
-    customer_entities = {}
-    customer_entities_as_list = {}
-    customer_key_phrases = ''
-    customer_sentiment = ''
-
-    if customer[0] != '' :
-        logger.info("CUSTOMER " + json.dumps(customer))
-        logger.info("CUSTOMER[0:24] " + json.dumps(customer[0:24]))
-        detected_agent_entities_response = comprehend.batch_detect_entities(TextList=customer[0:24], LanguageCode=LANGUAGE_CODE)
-        round_trip = time.time() - start
-        logger.info('End of batch_detect_entities. Took time {:10.4f}\n'.format(round_trip))
-
-        customer_entities = parse_detected_entities_response(detected_agent_entities_response, {})
-
-        for entity_type in customer_entities:
-            customer_entities_as_list[entity_type] = list(customer_entities[entity_type])
-
-        clean_up_entity_results(agent_entities_as_list)
-        print(json.dumps(agent_entities_as_list, indent=4))
-
-        start = time.time()
-        detected_agent_phrase_response = comprehend.batch_detect_key_phrases(TextList=customer[0:24], LanguageCode=LANGUAGE_CODE)
-        round_trip = time.time() - start
-        logger.info('End of batch_detect_key_phrases. Took time {:10.4f}\n'.format(round_trip))
-
-        customer_key_phrases = parse_detected_key_phrases_response(detected_agent_phrase_response)
-        logger.debug(json.dumps(key_phrases, indent=4))
-
-        customer_sentiment = comprehend.detect_sentiment(Text=customerTranscript[0:5000], LanguageCode=LANGUAGE_CODE)['Sentiment']
-
-        print('customer sentiment ' + customer_sentiment)
-
-    doc_to_update = {'transcript': paragraphs}
-    doc_to_update['agent'] = agentTranscript
-    doc_to_update['customer'] = customerTranscript
-    doc_to_update['transcript_entities'] = entities_as_list
-    doc_to_update['key_phrases'] = key_phrases
-    doc_to_update['agent_key_phrases'] = agent_key_phrases
-    doc_to_update['agent_entities'] = agent_entities_as_list
-    doc_to_update['customer_phrases'] = customer_key_phrases
-    doc_to_update['customer_entities'] = customer_entities_as_list
-    doc_to_update['agent_sentiment'] = agent_sentiment
-    doc_to_update['customer_sentiment'] = customer_sentiment
-    key = 'callrecords/transcript/' + id_generator() + '.json'
-
-    response = s3_client.put_object(Body=json.dumps(doc_to_update, indent=2), Bucket=bucket, Key=key)
-    logger.info(json.dumps(response, indent=2))
-
-    logger.info("successfully written transcript to s3://" + bucket + "/" + key)
-    # Return the bucket and key of the transcription / comprehend result.
-    transcript_location = {"bucket": bucket, "key": key}
-    return transcript_location
-
-
-
-def chunk_up_transcript(custom_vocabs, results):
-    # Here is the JSON returned by the Amazon Transcription SDK
-    # {
-    #  "status":"Completed",
-    #  "accountId":"Your AWS Account Id",
-    #  "results":{
-    #    "transcripts":[
-    #        {
-    #            "transcript":"Hello ... this is the text of the transcript"
-    #        }
-    #    ],
-    #     "channel_labels": {
-    #       "number_of_channels": 2,
-    #       "channels": [
-    #         {
-    #           "channel_label": "ch_0"
-    #           "items": [
-    #             {
-    #               "start_time": "23.84",
-    #               "type": "pronunciation",
-    #               "end_time": "24.87",
-    #               "alternatives": [
-    #                 {
-    #                   "content": "Hello",
-    #                   "confidence": "1.0000"
-    #                 }
-    #               ]
-    #             }
-    #           ]
-    #         }
-    #       ]
-    #     },
-    #     "items":[
-    #        {
-    #            "start_time":"0.630",
-    #            "end_time":"5.620",
-    #            "alternatives": [
-    #                {
-    #                    "confidence":"1.0000",
-    #                    "content":"Hello"
-    #                }
-    #            ],
-    #            "type":"pronunciation",
-    #            "channel_label": "ch_0"
-    #        }
-    #     ]
-    #  }
-
-
-    items = results['items']
-    paragraphs = []
-    current_paragraph = ""
-    comprehend_chunks = []
-    current_comprehend_chunk = ""
-    previous_time = 0
-    last_pause = 0
-    last_item_was_sentence_end = False
-    for item in items:
-        if item["type"] == "pronunciation":
-            start_time = float(item['start_time'])
-
-            if (start_time - previous_time) > 2 or (
-                    (start_time - last_pause) > 15 and last_item_was_sentence_end):
-                last_pause = start_time
-                if current_paragraph is not None or current_paragraph != "":
-                    paragraphs.append(current_paragraph)
-                current_paragraph = ""
-
-            phrase = item['alternatives'][0]['content']
-            if custom_vocabs is not None:
-                if phrase in custom_vocabs:
-                    phrase = custom_vocabs[phrase]
-                    logger.info("replaced custom vocab: " + phrase)
-            if phrase in commonDict:
-                phrase = commonDict[phrase]
-            current_paragraph += " " + phrase
-
-            # add chunking
-            current_comprehend_chunk += " " + phrase
-
-            last_item_was_sentence_end = False
-
-        elif item["type"] == "punctuation":
-            current_paragraph += item['alternatives'][0]['content']
-            current_comprehend_chunk += item['alternatives'][0]['content']
-            if item['alternatives'][0]['content'] in (".", "!", "?"):
-                last_item_was_sentence_end = True
-            else:
-                last_item_was_sentence_end = False
-
-        if (item["type"] == "punctuation" and len(current_comprehend_chunk) >= 4500) \
-                or len(current_comprehend_chunk) > 4900:
-            comprehend_chunks.append(current_comprehend_chunk)
-            current_comprehend_chunk = ""
-
-        if 'end_time' in item:
-            previous_time = float(item['end_time'])
-
-    if not current_comprehend_chunk == "":
-        comprehend_chunks.append(current_comprehend_chunk)
-    if not current_paragraph == "":
-        paragraphs.append(current_paragraph)
-
-    logger.debug(json.dumps(paragraphs, indent=4))
-    logger.debug(json.dumps(comprehend_chunks, indent=4))
-
-    return comprehend_chunks, "\n\n".join(paragraphs)
-
-
-def parse_detected_key_phrases_response(detected_phrase_response):
-    if 'ErrorList' in detected_phrase_response and len(detected_phrase_response['ErrorList']) > 0:
-        logger.error("encountered error during batch_detect_key_phrases")
-        logger.error(json.dumps(detected_phrase_response['ErrorList'], indent=4))
-
-    if 'ResultList' in detected_phrase_response:
-        result_list = detected_phrase_response["ResultList"]
-        phrases_set = set()
-        for result in result_list:
-            phrases = result['KeyPhrases']
-            for detected_phrase in phrases:
-                if float(detected_phrase["Score"]) >= ENTITY_CONFIDENCE_THRESHOLD:
-                    phrase = detected_phrase["Text"]
-                    phrases_set.add(phrase)
-        key_phrases = list(phrases_set)
-        return key_phrases
+            for r in res['Entities']:
+                customer_transcriptions[i]['Entities'].append(r['Text'])
+    # 全体のtranscription
+    customer_transcriptions.append({
+        'content': json_data['results']['transcripts'][0]['transcript'].replace(' ',''),
+        'job_name':json_data['jobName'],
+        'person':'customer',
+        'detail_flag':False
+    })
+    # 全体の感情分析
+    res = comprehend.detect_sentiment(Text=customer_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
+    customer_transcriptions[-1]['Positive'] = res['SentimentScore']['Positive']
+    customer_transcriptions[-1]['Negative'] = res['SentimentScore']['Negative']
+    customer_transcriptions[-1]['Neutral'] = res['SentimentScore']['Neutral']
+    customer_transcriptions[-1]['Mixed'] = res['SentimentScore']['Mixed']
+    # 全体のキーフレーズ分析
+    res = comprehend.detect_key_phrases(Text=customer_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
+    print('all transcription key phrases:')
+    print(res)
+    customer_transcriptions[-1]['KeyPhrases'] = []
+    if res['KeyPhrases'] == []:
+        pass
     else:
-        return []
-
-
-def clean_up_entity_results(entities_as_list):
-    if 'PERSON' in entities_as_list:
-        try:
-            people = entities_as_list['PERSON']
-            duplicates = find_duplicate_person(people)
-            for d in duplicates:
-                people.remove(d)
-            entities_as_list['PERSON'] = people
-        except Exception as e:
-            logger.error(e)
-    if 'COMMERCIAL_ITEM' in entities_as_list:
-        entities_as_list['Products_and_Titles'] = entities_as_list['COMMERCIAL_ITEM']
-        del entities_as_list['COMMERCIAL_ITEM']
-    if 'TITLE' in entities_as_list:
-        if 'PRODUCTS / TTTLES' in entities_as_list:
-            entities_as_list['Products_and_Titles'].append(entities_as_list['TITLE'])
-        else:
-            entities_as_list['Products_and_Titles'] = entities_as_list['TITLE']
-        del entities_as_list['TITLE']
-
-
-def parse_detected_entities_response(detected_entities_response, entities):
-    if 'ErrorList' in detected_entities_response and len(detected_entities_response['ErrorList']) > 0:
-        logger.error("encountered error during batch_detect_entities")
-        logger.error("error:" + json.dumps(detected_entities_response['ErrorList'], indent=4))
-
-    if 'ResultList' in detected_entities_response:
-        result_list = detected_entities_response["ResultList"]
-        for result in result_list:
-            detected_entities = result["Entities"]
-            for detected_entity in detected_entities:
-                if float(detected_entity["Score"]) >= ENTITY_CONFIDENCE_THRESHOLD:
-
-                    entity_type = detected_entity["Type"]
-
-                    if entity_type != 'QUANTITY':
-                        text = detected_entity["Text"]
-
-                        if entity_type == 'LOCATION' or entity_type == 'PERSON' or entity_type == 'ORGANIZATION':
-                            if not text.isupper():
-                                text = string.capwords(text)
-
-                        if entity_type in entities:
-                            entities[entity_type].add(text)
-                        else:
-                            entities[entity_type] = set([text])
-        return entities
+        for r in res['KeyPhrases']:
+            customer_transcriptions[-1]['KeyPhrases'].append(r['Text'])
+    # 全体のエンティティ分析
+    res = comprehend.detect_entities(Text=customer_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
+    customer_transcriptions[-1]['Entities'] = []
+    if res['Entities'] == []:
+        pass
     else:
-        return {}
+        for r in res['Entities']:
+            customer_transcriptions[-1]['Entities'].append(r['Text'])
+    
+
+
+
+
+    # agent
+    agent_transcriptions = []
+    # センテンスを作成する
+    # 1 秒未満に続いた単語は同じセンテンスとし、1 秒以上空いた音声は別センテンスとする
+    for d in json_data['results']['channel_labels']['channels'][1]['items']:
+        if 'start_time' not in d:
+            pass
+        elif agent_transcriptions == [] or float(d['start_time']) - float(agent_transcriptions[-1]['end_time']) >= 1:
+            agent_transcriptions.append({
+                'job_name':json_data['jobName'],
+                'person':'agent',
+                'start_time':d['start_time'],
+                'end_time':d['end_time'],
+                'content':d['alternatives'][0]['content'],
+                'agent_arn':agent_arn,
+                'agent_name':agent_name,
+                'detail_flag':True
+            })
+        elif float(d['end_time']) - float(agent_transcriptions[-1]['end_time']) < 1:
+            agent_transcriptions[-1]['end_time'] = d['end_time']
+            agent_transcriptions[-1]['content'] += d['alternatives'][0]['content']
+    for agent_transcription in agent_transcriptions:
+        agent_transcription['start_time'] = int(float(agent_transcription['start_time'])*1000)
+        agent_transcription['end_time'] = int(float(agent_transcription['end_time'])*1000)
+    for i,agent_transcription in enumerate(agent_transcriptions):
+        res = comprehend.detect_sentiment(Text=agent_transcription['content'],LanguageCode=LANGUAGE_CODE)
+        agent_transcriptions[i]['Positive'] = res['SentimentScore']['Positive']
+        agent_transcriptions[i]['Negative'] = res['SentimentScore']['Negative']
+        agent_transcriptions[i]['Neutral'] = res['SentimentScore']['Neutral']
+        agent_transcriptions[i]['Mixed'] = res['SentimentScore']['Mixed']
+        res = comprehend.detect_key_phrases(Text=agent_transcription['content'],LanguageCode=LANGUAGE_CODE)
+        agent_transcriptions[i]['KeyPhrases'] = []
+        if res['KeyPhrases'] == []:
+            pass
+        else:
+            for r in res['KeyPhrases']:
+                agent_transcriptions[i]['KeyPhrases'].append(r['Text'])
+        agent_transcriptions[i]['Entities'] = []
+        res = comprehend.detect_entities(Text=agent_transcription['content'],LanguageCode=LANGUAGE_CODE)
+        if res['Entities']==[]:
+            pass
+        else:
+            for r in res['Entities']:
+                agent_transcriptions[i]['Entities'].append(r['Text'])
+    
+    # 全体のtranscription
+    agent_transcriptions.append({
+        'content': json_data['results']['transcripts'][0]['transcript'].replace(' ',''),
+        'job_name':json_data['jobName'],
+        'person':'agent',
+        'agent_arn':agent_arn,
+        'agent_name':agent_name,
+        'detail_flag':False,
+    })
+    # 全体の感情分析
+    res = comprehend.detect_sentiment(Text=agent_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
+    agent_transcriptions[-1]['Positive'] = res['SentimentScore']['Positive']
+    agent_transcriptions[-1]['Negative'] = res['SentimentScore']['Negative']
+    agent_transcriptions[-1]['Neutral'] = res['SentimentScore']['Neutral']
+    agent_transcriptions[-1]['Mixed'] = res['SentimentScore']['Mixed']
+    # 全体のキーフレーズ分析
+    res = comprehend.detect_key_phrases(Text=agent_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
+    print('all transcription key phrases:')
+    print(res)
+    agent_transcriptions[-1]['KeyPhrases'] = []
+    if res['KeyPhrases'] == []:
+        pass
+    else:
+        for r in res['KeyPhrases']:
+            agent_transcriptions[-1]['KeyPhrases'].append(r['Text'])
+    # 全体のエンティティ分析
+    res = comprehend.detect_entities(Text=agent_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
+    agent_transcriptions[-1]['Entities'] = []
+    if res['Entities'] == []:
+        pass
+    else:
+        for r in res['Entities']:
+            agent_transcriptions[-1]['Entities'].append(r['Text'])
+    
+    
+    # s3upload
+
+    transcript_locations = []
+
+    # customer
+    for customer_transcription in customer_transcriptions:
+        key = 'callrecords/transcript/' + id_generator() + '.json'
+        response = s3_client.put_object(Body=json.dumps(customer_transcription, indent=2), Bucket=bucket, Key=key)
+        logger.info(json.dumps(response, indent=2))
+        logger.info("successfully written transcript to s3://" + bucket + "/" + key)
+    
+        # Return the bucket and key of the transcription / comprehend result.
+        transcript_locations.append({"bucket": bucket, "key": key})
+    # agent
+    for agent_transcription in agent_transcriptions:
+        key = 'callrecords/transcript/' + id_generator() + '.json'
+        response = s3_client.put_object(Body=json.dumps(agent_transcription, indent=2), Bucket=bucket, Key=key)
+        logger.info(json.dumps(response, indent=2))
+        logger.info("successfully written transcript to s3://" + bucket + "/" + key)
+    
+        # Return the bucket and key of the transcription / comprehend result.
+        transcript_locations.append({"bucket": bucket, "key": key})
+
+    logger.info('return value:')
+    logger.info(transcript_locations)
+    return transcript_locations
 
 def lambda_handler(event, context):
     """
@@ -366,5 +233,7 @@ def lambda_handler(event, context):
 
     # Pull the signed URL for the payload of the transcription job
     transcription_url = event['transcribeStatus']['transcriptionUrl']
+    agent_name = event['transcribeStatus']['Username']
+    agent_arn = event['transcribeStatus']['ARN']
 
-    return process_transcript(transcription_url)
+    return process_transcript(transcription_url,agent_name,agent_arn)
