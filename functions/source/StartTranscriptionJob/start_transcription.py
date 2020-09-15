@@ -24,7 +24,7 @@ CONTENT_TYPE_TO_MEDIA_FORMAT = {
 # Check valid language codes here: https://docs.aws.amazon.com/transcribe/latest/dg/API_StartTranscriptionJob.html#transcribe-StartTranscriptionJob-request-LanguageCode
 # Note that you should also check the valid languages in AWS Comprehend. If you choose to transcribe in a language
 # That is not supported by AWS Comprehend, the comprehension analysis will not work.
-LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', default = "en-US")
+LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', default = "ja-JP")
 
 
 class InvalidInputError(ValueError):

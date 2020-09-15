@@ -225,6 +225,9 @@ Resources:
         Bucket: !GetAtt LPStack.Outputs.LambdaZipsBucketName
         Key: !Sub '${QSS3KeyPrefix}functions/packages/StartTranscriptionJob.zip'
       Description: 'Lambda function that starts the Transcription job'
+      Environment:
+        Variables:
+          LANGUAGE_CODE: 'ja-JP'
       Handler: start_transcription.lambda_handler
       MemorySize: 256
       Role:
