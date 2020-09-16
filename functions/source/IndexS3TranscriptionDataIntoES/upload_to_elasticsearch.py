@@ -67,52 +67,18 @@ def index_episode(es, event, fullEpisodeS3Location,contactId):
 
     contact_id = contactId
 
-    if fullepisode['detail_flag']:
-        updateDoc = {
-            'doc':{
-                'audio_type': event['audio_type'],
-                'audio_s3_location': s3_location,
-                'contact_id': contact_id,
-                'LastUpdateTimestamp': s[0:4] + '-' + s[4:6] + '-' + s[6:8] + 'T' + s.split('T')[1] + 'Z',
-                'job_name': fullepisode['job_name'],
-                'transcript': fullepisode['content'],
-                'person': fullepisode['person'],
-                'start_time': fullepisode['start_time'],
-                'end_time': fullepisode['end_time'],
-                'Positive': fullepisode['Positive'],
-                'Negative': fullepisode['Negative'],
-                'Neutral': fullepisode['Neutral'],
-                'Mixed': fullepisode['Mixed'],
-                'KeyPhrases': fullepisode['KeyPhrases'],
-                'Entities': fullepisode['Entities'],
-                'type': 'CallRecord'
-            },
-            "doc_as_upsert" : True
-        }
-    else:
-        updateDoc = {
-            'doc':{
-                'audio_type': event['audio_type'],
-                'audio_s3_location': s3_location,
-                'contact_id': contact_id,
-                'LastUpdateTimestamp': s[0:4] + '-' + s[4:6] + '-' + s[6:8] + 'T' + s.split('T')[1] + 'Z',
-                'job_name': fullepisode['job_name'],
-                'transcript': fullepisode['content'],
-                'person': fullepisode['person'],
-                'Positive': fullepisode['Positive'],
-                'Negative': fullepisode['Negative'],
-                'Neutral': fullepisode['Neutral'],
-                'Mixed': fullepisode['Mixed'],
-                'KeyPhrases': fullepisode['KeyPhrases'],
-                'Entities': fullepisode['Entities'],
-                'type': 'CallRecord'
-            },
-            "doc_as_upsert" : True
-        }
-    # agent ならば agent の名前と ARN を格納する
-    if updateDoc['doc']['person'] == 'agent':
-        updateDoc['doc']['agent_name'] = fullepisode['agent_name']
-        updateDoc['doc']['agent_arn'] = fullepisode['agent_arn']
+    updateDoc = {
+        'doc':{
+            'audio_type': event['audio_type'],
+            'audio_s3_location': s3_location,
+            'contact_id': contact_id,
+            'LastUpdateTimestamp': s[0:4] + '-' + s[4:6] + '-' + s[6:8] + 'T' + s.split('T')[1] + 'Z',
+            'type': 'CallRecord'
+        },
+        "doc_as_upsert" : True
+    }
+    for key in fullepisode.keys():
+        updateDoc['doc'][key] = fullepisode[key]
 
     es.update(
         index=SENTENCE_INDEX if fullepisode['detail_flag'] == True else FULL_EPISODE_INDEX,
@@ -120,4 +86,3 @@ def index_episode(es, event, fullEpisodeS3Location,contactId):
         body=updateDoc,
         id=contact_id
         )
-

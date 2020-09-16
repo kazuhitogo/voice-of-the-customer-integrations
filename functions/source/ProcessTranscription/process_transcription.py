@@ -27,8 +27,34 @@ commonDict = {'i': 'I'}
 s3_client = boto3.client("s3")
 
 # Pull the bucket name from the environment variable set in the cloudformation stack
-bucket = os.environ['BUCKET_NAME']
+BUCKET = os.environ['BUCKET_NAME']
 
+def detect_all(text):
+    retval = {}
+    comprehend = boto3.client(service_name='comprehend', region_name=REGION)
+    # 感情分析
+    res = comprehend.detect_sentiment(Text=text,LanguageCode=LANGUAGE_CODE)
+    retval['Positive'] = res['SentimentScore']['Positive']
+    retval['Negative'] = res['SentimentScore']['Negative']
+    retval['Neutral'] = res['SentimentScore']['Neutral']
+    retval['Mixed'] = res['SentimentScore']['Mixed']
+    # キーフレーズ
+    res = comprehend.detect_key_phrases(Text=text,LanguageCode=LANGUAGE_CODE)
+    retval['KeyPhrases'] = []
+    if res['KeyPhrases'] == []:
+        pass
+    else:
+        for r in res['KeyPhrases']:
+            retval['KeyPhrases'].append(r['Text'])
+    # エンティティ
+    res = comprehend.detect_entities(Text=text,LanguageCode=LANGUAGE_CODE)
+    retval['Entities'] = []
+    if res['Entities'] == []:
+        pass
+    else:
+        for r in res['Entities']:
+            retval['Entities'].append(r['Text'])
+    return retval
 
 def process_transcript(transcription_url,agent_name='',agent_arn=''):
     custom_vocabs = None
@@ -62,60 +88,10 @@ def process_transcript(transcription_url,agent_name='',agent_arn=''):
         customer_transcription['start_time'] = int(float(customer_transcription['start_time'])*1000)
         customer_transcription['end_time'] = int(float(customer_transcription['end_time'])*1000)
     for i,customer_transcription in enumerate(customer_transcriptions):
-        res = comprehend.detect_sentiment(Text=customer_transcription['content'],LanguageCode=LANGUAGE_CODE)
-        customer_transcriptions[i]['Positive'] = res['SentimentScore']['Positive']
-        customer_transcriptions[i]['Negative'] = res['SentimentScore']['Negative']
-        customer_transcriptions[i]['Neutral'] = res['SentimentScore']['Neutral']
-        customer_transcriptions[i]['Mixed'] = res['SentimentScore']['Mixed']
-        res = comprehend.detect_key_phrases(Text=customer_transcription['content'],LanguageCode=LANGUAGE_CODE)
-        customer_transcriptions[i]['KeyPhrases'] = []
-        if res['KeyPhrases'] == []:
-            pass
-        else:
-            for r in res['KeyPhrases']:
-                customer_transcriptions[i]['KeyPhrases'].append(r['Text'])
-        customer_transcriptions[i]['Entities'] = []
-        res = comprehend.detect_entities(Text=customer_transcription['content'],LanguageCode=LANGUAGE_CODE)
-        if res['Entities']==[]:
-            pass
-        else:
-            for r in res['Entities']:
-                customer_transcriptions[i]['Entities'].append(r['Text'])
-    # 全体のtranscription
-    customer_transcriptions.append({
-        'content': json_data['results']['transcripts'][0]['transcript'].replace(' ',''),
-        'job_name':json_data['jobName'],
-        'person':'customer',
-        'detail_flag':False
-    })
-    # 全体の感情分析
-    res = comprehend.detect_sentiment(Text=customer_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
-    customer_transcriptions[-1]['Positive'] = res['SentimentScore']['Positive']
-    customer_transcriptions[-1]['Negative'] = res['SentimentScore']['Negative']
-    customer_transcriptions[-1]['Neutral'] = res['SentimentScore']['Neutral']
-    customer_transcriptions[-1]['Mixed'] = res['SentimentScore']['Mixed']
-    # 全体のキーフレーズ分析
-    res = comprehend.detect_key_phrases(Text=customer_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
-    print('all transcription key phrases:')
-    print(res)
-    customer_transcriptions[-1]['KeyPhrases'] = []
-    if res['KeyPhrases'] == []:
-        pass
-    else:
-        for r in res['KeyPhrases']:
-            customer_transcriptions[-1]['KeyPhrases'].append(r['Text'])
-    # 全体のエンティティ分析
-    res = comprehend.detect_entities(Text=customer_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
-    customer_transcriptions[-1]['Entities'] = []
-    if res['Entities'] == []:
-        pass
-    else:
-        for r in res['Entities']:
-            customer_transcriptions[-1]['Entities'].append(r['Text'])
-    
-
-
-
+        customer_result = detect_all(customer_transcription['content'])
+        # res = comprehend.detect_sentiment(Text=customer_transcription['content'],LanguageCode=LANGUAGE_CODE)
+        for key in customer_result.keys():
+            customer_transcriptions[i][key] = customer_result[key]
 
     # agent
     agent_transcriptions = []
@@ -142,84 +118,75 @@ def process_transcript(transcription_url,agent_name='',agent_arn=''):
         agent_transcription['start_time'] = int(float(agent_transcription['start_time'])*1000)
         agent_transcription['end_time'] = int(float(agent_transcription['end_time'])*1000)
     for i,agent_transcription in enumerate(agent_transcriptions):
-        res = comprehend.detect_sentiment(Text=agent_transcription['content'],LanguageCode=LANGUAGE_CODE)
-        agent_transcriptions[i]['Positive'] = res['SentimentScore']['Positive']
-        agent_transcriptions[i]['Negative'] = res['SentimentScore']['Negative']
-        agent_transcriptions[i]['Neutral'] = res['SentimentScore']['Neutral']
-        agent_transcriptions[i]['Mixed'] = res['SentimentScore']['Mixed']
-        res = comprehend.detect_key_phrases(Text=agent_transcription['content'],LanguageCode=LANGUAGE_CODE)
-        agent_transcriptions[i]['KeyPhrases'] = []
-        if res['KeyPhrases'] == []:
-            pass
-        else:
-            for r in res['KeyPhrases']:
-                agent_transcriptions[i]['KeyPhrases'].append(r['Text'])
-        agent_transcriptions[i]['Entities'] = []
-        res = comprehend.detect_entities(Text=agent_transcription['content'],LanguageCode=LANGUAGE_CODE)
-        if res['Entities']==[]:
-            pass
-        else:
-            for r in res['Entities']:
-                agent_transcriptions[i]['Entities'].append(r['Text'])
+        agent_result = detect_all(agent_transcription['content'])
+        # res = comprehend.detect_sentiment(Text=agent_transcription['content'],LanguageCode=LANGUAGE_CODE)
+        for key in agent_result.keys():
+            agent_transcriptions[i][key] = agent_result[key]
     
     # 全体のtranscription
-    agent_transcriptions.append({
-        'content': json_data['results']['transcripts'][0]['transcript'].replace(' ',''),
+    ## agent
+    agent_content = ''
+    for item in json_data['results']['channel_labels']['channels'][1]['items']:
+        agent_content += item['alternatives'][0]['content']
+    agent_content = agent_content.replace(' ','')
+    ## customer
+    customer_content = ''
+    for item in json_data['results']['channel_labels']['channels'][0]['items']:
+        customer_content += item['alternatives'][0]['content']
+    customer_content = customer_content.replace(' ','')
+    ## whole
+    whole_transcription = {
+        'whole_transcript': json_data['results']['transcripts'][0]['transcript'].replace(' ',''),
+        'agent_transcript': agent_content,
+        'customer_transcript': customer_content,
         'job_name':json_data['jobName'],
-        'person':'agent',
         'agent_arn':agent_arn,
         'agent_name':agent_name,
         'detail_flag':False,
-    })
-    # 全体の感情分析
-    res = comprehend.detect_sentiment(Text=agent_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
-    agent_transcriptions[-1]['Positive'] = res['SentimentScore']['Positive']
-    agent_transcriptions[-1]['Negative'] = res['SentimentScore']['Negative']
-    agent_transcriptions[-1]['Neutral'] = res['SentimentScore']['Neutral']
-    agent_transcriptions[-1]['Mixed'] = res['SentimentScore']['Mixed']
-    # 全体のキーフレーズ分析
-    res = comprehend.detect_key_phrases(Text=agent_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
-    print('all transcription key phrases:')
-    print(res)
-    agent_transcriptions[-1]['KeyPhrases'] = []
-    if res['KeyPhrases'] == []:
-        pass
-    else:
-        for r in res['KeyPhrases']:
-            agent_transcriptions[-1]['KeyPhrases'].append(r['Text'])
-    # 全体のエンティティ分析
-    res = comprehend.detect_entities(Text=agent_transcriptions[-1]['content'],LanguageCode=LANGUAGE_CODE)
-    agent_transcriptions[-1]['Entities'] = []
-    if res['Entities'] == []:
-        pass
-    else:
-        for r in res['Entities']:
-            agent_transcriptions[-1]['Entities'].append(r['Text'])
+    }
+    whole_detect_result = detect_all(whole_transcription['whole_transcript'])
+    for key in whole_detect_result.keys():
+        whole_transcription['whole_'+key]=whole_detect_result[key]
+    
+    agent_detect_result = detect_all(whole_transcription['agent_transcript'])
+    for key in agent_detect_result.keys():
+        whole_transcription['agent_'+key]=agent_detect_result[key]
+    
+    customer_detect_result = detect_all(whole_transcription['customer_transcript'])
+    for key in customer_detect_result.keys():
+        whole_transcription['customer_'+key]=customer_detect_result[key]
+    
     
     
     # s3upload
-
     transcript_locations = []
 
     # customer
     for customer_transcription in customer_transcriptions:
         key = 'callrecords/transcript/sentence/customer/' + id_generator() + '.json'
-        response = s3_client.put_object(Body=json.dumps(customer_transcription, indent=2), Bucket=bucket, Key=key)
+        response = s3_client.put_object(Body=json.dumps(customer_transcription, indent=2), Bucket=BUCKET, Key=key)
         logger.info(json.dumps(response, indent=2))
-        logger.info("successfully written transcript to s3://" + bucket + "/" + key)
+        logger.info("successfully written transcript to s3://" + BUCKET + "/" + key)
     
         # Return the bucket and key of the transcription / comprehend result.
-        transcript_locations.append({"bucket": bucket, "key": key})
+        transcript_locations.append({"bucket": BUCKET, "key": key})
     # agent
     for agent_transcription in agent_transcriptions:
         key = 'callrecords/transcript/sentence/agent/' + id_generator() + '.json'
-        response = s3_client.put_object(Body=json.dumps(agent_transcription, indent=2), Bucket=bucket, Key=key)
+        response = s3_client.put_object(Body=json.dumps(agent_transcription, indent=2), Bucket=BUCKET, Key=key)
         logger.info(json.dumps(response, indent=2))
-        logger.info("successfully written transcript to s3://" + bucket + "/" + key)
+        logger.info("successfully written transcript to s3://" + BUCKET + "/" + key)
     
         # Return the bucket and key of the transcription / comprehend result.
-        transcript_locations.append({"bucket": bucket, "key": key})
-
+        transcript_locations.append({"bucket": BUCKET, "key": key})
+    # コール全体のjson保存
+    key = 'callrecords/transcript/whole/json/' + id_generator() + '.json'
+    response = s3_client.put_object(Body=json.dumps(whole_transcription, indent=2), Bucket=BUCKET, Key=key)
+    logger.info(json.dumps(response, indent=2))
+    logger.info("successfully written transcript to s3://" + BUCKET + "/" + key)
+    transcript_locations.append({"bucket": BUCKET, "key": key})
+    
+    
     logger.info('return value:')
     logger.info(transcript_locations)
     return transcript_locations
