@@ -14,7 +14,7 @@ logger = logging.getLogger()
 REGION = os.getenv('AWS_REGION')
 esendpoint = os.environ['ES_DOMAIN']
 FULL_EPISODE_INDEX = os.getenv('ES_EPISODE_INDEX', default='call-transcript')
-SENTENCE_INDEX = os.getenv('ES_SENTENCE_INDEX', default='call-transcript')
+SENTENCE_INDEX = os.getenv('ES_SENTENCE_INDEX', default='detail-call-transcript')
 FULL_EPISODE_DOCTYPE = os.getenv('FULL_EPISODE_DOCTYPE', default='doc')
 
 s3_client = boto3.client('s3')

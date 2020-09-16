@@ -211,7 +211,7 @@ Resources:
           ES_DOMAIN:
             !GetAtt CallsElasticSearch.DomainEndpoint
           ES_EPISODE_INDEX: 'call-transcript'
-          ES_SENTENCE_INDEX: 'call-transcript-detail'
+          ES_SENTENCE_INDEX: 'detail-call-transcript'
       Handler: upload_to_elasticsearch.lambda_handler
       MemorySize: 256
       Role:
