@@ -203,7 +203,7 @@ def process_transcript(transcription_url,agent_name='',agent_arn=''):
 
     # customer
     for customer_transcription in customer_transcriptions:
-        key = 'callrecords/transcript/' + id_generator() + '.json'
+        key = 'callrecords/transcript/sentence/customer/' + id_generator() + '.json'
         response = s3_client.put_object(Body=json.dumps(customer_transcription, indent=2), Bucket=bucket, Key=key)
         logger.info(json.dumps(response, indent=2))
         logger.info("successfully written transcript to s3://" + bucket + "/" + key)
@@ -212,7 +212,7 @@ def process_transcript(transcription_url,agent_name='',agent_arn=''):
         transcript_locations.append({"bucket": bucket, "key": key})
     # agent
     for agent_transcription in agent_transcriptions:
-        key = 'callrecords/transcript/' + id_generator() + '.json'
+        key = 'callrecords/transcript/sentence/agent/' + id_generator() + '.json'
         response = s3_client.put_object(Body=json.dumps(agent_transcription, indent=2), Bucket=bucket, Key=key)
         logger.info(json.dumps(response, indent=2))
         logger.info("successfully written transcript to s3://" + bucket + "/" + key)
