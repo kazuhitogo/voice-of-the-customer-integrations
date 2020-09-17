@@ -38,6 +38,7 @@ def detect_all(text):
     retval['Negative'] = res['SentimentScore']['Negative']
     retval['Neutral'] = res['SentimentScore']['Neutral']
     retval['Mixed'] = res['SentimentScore']['Mixed']
+    retval['sentiment'] = res['Sentiment']
     # キーフレーズ
     res = comprehend.detect_key_phrases(Text=text,LanguageCode=LANGUAGE_CODE)
     retval['KeyPhrases'] = []
