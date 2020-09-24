@@ -73,7 +73,8 @@ def index_episode(es, event, fullEpisodeS3Location,contactId):
             'audio_s3_location': s3_location,
             'contact_id': contact_id,
             'LastUpdateTimestamp': s[0:4] + '-' + s[4:6] + '-' + s[6:8] + 'T' + s.split('T')[1] + 'Z',
-            'type': 'CallRecord'
+            'type': 'CallRecord',
+            'wavfile_name': event['key'].split('/')[-1]
         },
         "doc_as_upsert" : True
     }
