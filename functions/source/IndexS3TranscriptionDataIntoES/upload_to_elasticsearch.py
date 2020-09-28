@@ -82,7 +82,7 @@ def index_episode(es, event, fullEpisodeS3Location,contactId):
         updateDoc['doc'][key] = fullepisode[key]
 
     es.update(
-        index=SENTENCE_INDEX if fullepisode['detail_flag'] == True else FULL_EPISODE_INDEX,
+        index=SENTENCE_INDEX + s[0:4] + '-' + s[4:6] + '-' + s[6:8] if fullepisode['detail_flag'] == True else FULL_EPISODE_INDEX + s[0:4] + '-' + s[4:6] + '-' + s[6:8],
         doc_type=FULL_EPISODE_DOCTYPE,
         body=updateDoc,
         id=contact_id
