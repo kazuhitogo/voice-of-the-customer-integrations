@@ -378,7 +378,7 @@ Resources:
   CallsElasticSearch:
     Type: AWS::Elasticsearch::Domain
     Properties:
-      ElasticsearchVersion: '7.1'
+      ElasticsearchVersion: '7.7'
       ElasticsearchClusterConfig:
         InstanceCount: 2
         InstanceType: 'm4.large.elasticsearch'
