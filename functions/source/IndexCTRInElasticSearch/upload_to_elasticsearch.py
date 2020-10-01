@@ -1,13 +1,8 @@
-import boto3
-import certifi
-import json
-import os
+import boto3,certifi,json,os,logging,time,base64
 from aws_requests_auth.aws_auth import AWSRequestsAuth
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 from elasticsearch import helpers
-import logging
-import time
-import base64
+import datetime
 
 # Log level
 logging.basicConfig()
@@ -56,6 +51,7 @@ def lambda_handler(event, context):
     return f"Successfully processed {len(event['Records'])} records."
 
 def index_ctr(es, payload):
+    today = format(datetime.date.today(), '%Y-%m-%d')
     contact_id = payload['ContactId']
 
     updateDoc = {
@@ -64,5 +60,5 @@ def index_ctr(es, payload):
     }
 
     start = time.time()
-    res = es.update(index=FULL_EPISODE_INDEX, doc_type=FULL_EPISODE_DOCTYPE, body=updateDoc, id=contact_id)
+    res = es.update(index=FULL_EPISODE_INDEX + '-' + today, doc_type=FULL_EPISODE_DOCTYPE, body=updateDoc, id=contact_id)
     logger.info('REQUEST_TIME es_client.index {:10.4f}'.format(time.time() - start))
